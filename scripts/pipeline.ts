@@ -203,11 +203,14 @@ function cleanHeadline(s: string) {
     .trim();
 }
 
-function similar(a: string, b: string) {
+function similar(bseName: string, ours: string) {
   const norm = (s: string) => s.toLowerCase().replace(/limited|ltd|\.|&|and|the/g, "").replace(/\s+/g, "");
-  const x = norm(a),
-    y = norm(b);
-  return x.includes(y.slice(0, 6)) || y.includes(x.slice(0, 6));
+  const x = norm(bseName),
+    y = norm(ours);
+  if (x.includes(y.slice(0, 6)) || y.includes(x.slice(0, 6))) return true;
+  // acronyms: "Indian Railway Catering and Tourism Corporation" ~ "IRCTC"
+  const initials = bseName.split(/\s+/).filter((w) => /^[A-Z]/.test(w) && !/^(Ltd|Limited|And|Of|The)\.?$/i.test(w)).map((w) => w[0]).join("").toLowerCase();
+  return initials.length >= 3 && y.startsWith(initials.slice(0, 3));
 }
 
 main().catch((e) => {

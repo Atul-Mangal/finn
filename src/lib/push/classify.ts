@@ -18,9 +18,10 @@ const RULES: Rule[] = [
   [/insider trading|\bsast\b|takeover regulation|regulation 7\s*\(|reg\.? 7\s*\(|29\s*\(\s*[12]\s*\)/, "insider_trading"],
   [/transcript|earnings call|conference call|con-?call|audio recording|video recording/, "earnings_call"],
   [/analyst|investor meet|institutional investor|investor conference|non-deal roadshow|investor day/, "investor_meetings"],
+  [/esop|esos|esps|employee stock|stock option|employees? (welfare|benefit)|certificate pursuant|half[- ]yearly report|regulation 74|74\s*\(5\)/, "unclassified"],
   [/credit rating|\bcrisil\b|\bicra\b|care ratings|india ratings|\brating/, "credit_rating"],
+  [/financial results?|quarterly results?|results for the (quarter|period|year)|unaudited|audited financial|financial statements for the quarter|investor presentation|shareholders?'? letter|earnings presentation/, "results"],
   [/buy-?back|rights issue|\bqip\b|qualified institution|preferential (issue|allotment)|commercial paper|non-convertible|\bncds?\b|debenture|fund rais|private placement/, "fund_raise"],
-  [/financial results?|quarterly results?|results for the (quarter|period|year)|unaudited|audited financial|investor presentation|shareholders?'? letter|earnings presentation/, "results"],
   [/\bbonus\b|stock split|sub-?division of (equity )?shares|split of/, "bonus_split"],
   [/dividend/, "dividend"],
   [/acqui|merger|amalgamation|demerger|scheme of arrangement|joint venture|stake sale|divest|slump sale|incorporation of.*subsidiary|investment in.*subsidiar/, "M&A"],
@@ -101,7 +102,13 @@ export function scorePriority(cat: Category, text: string): number {
   const adj = (re: RegExp, d: number) => {
     if (re.test(t)) p += d;
   };
+  // A notice that a board WILL meet is a date, not news — whatever it's about.
+  if (cat !== "results") adj(/board meeting intimation|intimation of (the )?board meeting|prior intimation|will be held on/, -40);
   switch (cat) {
+    case "fund_raise":
+      adj(/commercial paper|repayment|redemption|\bncds?\b|debenture|interest payment/, -25); // routine debt servicing
+      adj(/\bqip\b|rights issue|preferential|buy-?back|qualified institution/, +5);
+      break;
     case "results":
       adj(/intimation|to consider|will be held|is scheduled|trading window/, -65); // a date, not the numbers
       adj(/newspaper|publication|advertisement/, -75);

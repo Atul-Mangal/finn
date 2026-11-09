@@ -21,6 +21,10 @@ test("rules classify common BSE subjects", () => {
     ["Company Update | Receipt of USFDA warning letter", "litigation"],
     ["Insider Trading / SAST | Disclosure under Regulation 29(2)", "insider_trading"],
   ];
+  cases.push(
+    ["Company Update | Allotment | Allotment of 12,000 equity shares under Employee Stock Option Scheme", "unclassified"],
+    ["Board Meeting | Board Meeting Outcome | Unaudited Financial Results and issue of non-convertible debentures", "results"],
+  );
   for (const [t, want] of cases) assert.equal(ruleClassify(t), want, t);
 });
 
@@ -31,6 +35,8 @@ test("priority encodes materiality", () => {
   assert.equal(tierOf(intimation), "routine");
   assert.ok(scorePriority("management_change", "Resignation of CFO") > scorePriority("management_change", "Appointment of Independent Director"));
   assert.ok(scorePriority("credit_rating", "rating downgraded to AA-") > scorePriority("credit_rating", "rating reaffirmed"));
+  assert.equal(tierOf(scorePriority("fund_raise", "Intimation of Repayment of Commercial Paper")), "normal");
+  assert.equal(tierOf(scorePriority("fund_raise", "Board Meeting Intimation to consider NCD issue")), "routine");
 });
 
 test("results card: units, EBITDA, sanity checks", () => {
