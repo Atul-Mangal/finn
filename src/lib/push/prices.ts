@@ -16,9 +16,10 @@ interface ChartResp {
 
 export async function fetchEod(symbol: string, range = "6mo"): Promise<PriceSeries> {
   let lastErr: unknown;
-  for (const suffix of [".NS", ".BO"]) {
+  const attempts = [".NS", ".BO"].flatMap((suffix) => ["query1", "query2"].map((host) => ({ suffix, host })));
+  for (const { suffix, host } of attempts) {
     try {
-      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol + suffix)}?range=${range}&interval=1d`;
+      const url = `https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol + suffix)}?range=${range}&interval=1d`;
       const j = await fetchJson<ChartResp>(url);
       const r = j.chart.result?.[0];
       if (!r?.timestamp) throw new Error(j.chart.error?.description || "no data");
