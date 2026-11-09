@@ -11,9 +11,12 @@
     "pipeline": "tsx scripts/pipeline.ts",
     "prefetch": "tsx scripts/prefetch-research.ts",
     "check": "tsx scripts/check-portfolio.ts",
-    "sample": "tsx scripts/make-sample.ts"
+    "sample": "tsx scripts/make-sample.ts",
+    "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
+    "@fontsource-variable/newsreader": "^5.3.0",
+    "@fontsource-variable/schibsted-grotesk": "^5.3.0",
     "cheerio": "^1.2.0",
     "next": "16.4.5",
     "react": "19.3.0",

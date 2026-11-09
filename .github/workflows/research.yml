@@ -1,0 +1,44 @@
+# Pull side: precompute research for the demo tickers so they open instantly.
+# Any other ticker is researched live in the app.
+name: Prefetch research
+
+on:
+  schedule:
+    - cron: "0 15 * * 0" # weekly, Sunday evening IST
+  workflow_dispatch:
+    inputs:
+      symbols:
+        description: "Space-separated NSE symbols (blank = demo set)"
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-data
+  cancel-in-progress: false
+
+jobs:
+  prefetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Prefetch
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: npm run prefetch -- ${{ github.event.inputs.symbols }}
+      - name: Commit
+        run: |
+          git config user.name "finn-bot"
+          git config user.email "finn-bot@users.noreply.github.com"
+          git add public/data/research data/cache.json
+          if git diff --cached --quiet; then echo "no changes"; exit 0; fi
+          git commit -m "data: research snapshots $(date -u +%Y-%m-%d)"
+          git pull --rebase --autostash
+          git push
