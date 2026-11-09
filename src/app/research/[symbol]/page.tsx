@@ -136,7 +136,7 @@ export default function ResearchPage() {
 
       {computed && base && (
         <>
-          <nav className="sticky top-0 z-10 -mx-4 mt-4 flex gap-1.5 overflow-x-auto bg-stone/95 px-4 py-2 backdrop-blur" aria-label="Sections">
+          <nav className="sticky top-0 z-10 -mx-4 mt-4 flex gap-1.5 overflow-x-auto no-scrollbar bg-stone/95 px-4 py-2 backdrop-blur" aria-label="Sections">
             {[["promises", "Promises"], ["numbers", "Numbers"], ["trajectory", "Trajectory"], ["balance", "Balance sheet"], ["cash", "Cash"], ["guidance", "Guidance"], ["case", "Bull & bear"]].map(([id, l]) => (
               <a key={id} href={`#${id}`} className="shrink-0 rounded-full bg-paper px-3 py-1 text-[13px]">{l}</a>
             ))}

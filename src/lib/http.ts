@@ -8,7 +8,7 @@ export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export async function fetchWithRetry(
   url: string,
   init: RequestInit = {},
-  { retries = 2, timeoutMs = 25000 }: { retries?: number; timeoutMs?: number } = {},
+  { retries = 2, timeoutMs = 25000, passStatus = false }: { retries?: number; timeoutMs?: number; passStatus?: boolean } = {},
 ): Promise<Response> {
   let lastErr: unknown;
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -21,7 +21,7 @@ export async function fetchWithRetry(
         signal: ctrl.signal,
       });
       clearTimeout(t);
-      if (res.status === 429 || res.status >= 500) {
+      if (!passStatus && (res.status === 429 || res.status >= 500)) {
         lastErr = new Error(`HTTP ${res.status} for ${url}`);
         await sleep(1000 * 2 ** attempt);
         continue;

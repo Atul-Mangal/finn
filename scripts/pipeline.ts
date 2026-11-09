@@ -20,13 +20,16 @@ import { pdfText } from "../src/lib/pdf";
 import { fetchEod } from "../src/lib/push/prices";
 import { attachmentUrls, fetchAnnouncements, istToIso, type BseAnnouncement } from "../src/lib/push/bse";
 import { llmClassify, ruleClassify, scorePriority, tierOf } from "../src/lib/push/classify";
-import { extractResults } from "../src/lib/push/results";
+import { cardFromScreener, extractResults } from "../src/lib/push/results";
+import { fetchCompany } from "../src/lib/pull/screener";
 import { enrichPerson, extractPeople } from "../src/lib/push/people";
 import { batchHeadlineSummaries, filingSummary } from "../src/lib/push/summarize";
 import type { Category, Feed, FeedItem, Prices } from "../src/lib/types";
 import { fileCache } from "./lib/file-cache";
 
 const WINDOW_DAYS = Number(process.env.WINDOW_DAYS || 30);
+// Free-tier friendly: space model calls out. The cron job isn't in a hurry.
+process.env.LLM_MIN_INTERVAL_MS ||= "4500";
 const OUT = path.join(process.cwd(), "public", "data");
 const store = fileCache(path.join(process.cwd(), "data", "cache.json"));
 setCacheStore(store);
@@ -132,9 +135,14 @@ async function main() {
       const patch: Partial<FeedItem> = {};
       try {
         if (it.category === "results") {
-          const card = doc ? await extractResults(doc.text, usage) : null;
+          let card = doc ? await extractResults(doc.text, usage) : null;
+          if (!card) {
+            // scanned PDF or a cover letter: use screener's standardised table instead
+            const co = await fetchCompany(it.symbol).catch(() => null);
+            card = co ? cardFromScreener(co.quarters, co.isLender, co.basis) : null;
+          }
           if (card) patch.results = card;
-          else patch.summary = "Results filing — table could not be read automatically; open the filing.";
+          else patch.summary = "Results filing — the table couldn't be read automatically; open the filing.";
         } else if (it.category === "management_change") {
           const text = doc?.text || `${a.NEWSSUB}\n${a.HEADLINE}`;
           const people = await extractPeople(text, it.company, usage);
@@ -149,7 +157,8 @@ async function main() {
       Object.assign(it, patch);
     });
 
-    const mid = items.filter((i) => i.tier === "normal" && !i.summary);
+    // A one-liner adds nothing to "Earnings call transcript" — that lives in Research.
+    const mid = items.filter((i) => i.tier === "normal" && !i.summary && !["earnings_call", "investor_meetings"].includes(i.category));
     const lines = await batchHeadlineSummaries(
       mid.map((i) => ({ id: i.id, company: i.company, text: `${i.headline} — ${byId.get(i.id)?.HEADLINE || ""}` })),
       usage,

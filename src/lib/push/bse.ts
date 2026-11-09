@@ -31,7 +31,12 @@ export async function fetchAnnouncements(scrip: string, from: Date, to: Date): P
     const url =
       `https://api.bseindia.com/BseIndiaAPI/api/AnnSubCategoryGetData/w?pageno=${page}&strCat=-1` +
       `&strPrevDate=${ymd(from)}&strScrip=${scrip}&strSearch=P&strToDate=${ymd(to)}&strType=C&subcategory=-1`;
-    const j = await fetchJson<{ Table?: BseAnnouncement[]; Table1?: { ROWCNT: number }[] }>(url, { headers: HEADERS });
+    type Resp = { Table?: BseAnnouncement[]; Table1?: { ROWCNT: number }[] };
+    // BSE occasionally answers 400 to a valid request; one polite retry fixes it.
+    const j = await fetchJson<Resp>(url, { headers: HEADERS }).catch(async () => {
+      await sleep(2500);
+      return fetchJson<Resp>(url, { headers: HEADERS });
+    });
     const rows = j.Table || [];
     out.push(...rows);
     const total = j.Table1?.[0]?.ROWCNT ?? rows.length;

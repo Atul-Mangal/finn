@@ -125,7 +125,7 @@ export async function fetchCompany(symbolRaw: string): Promise<CompanyBase> {
   }
 
   const name = $("h1").first().text().trim() || symbol;
-  const about = $(".company-profile .about p").first().text().replace(/\s+/g, " ").trim();
+  const about = $(".company-profile .about p").first().text().replace(/\[\d+\]/g, "").replace(/\s+/g, " ").trim();
   const topRatios: Record<string, string> = {};
   $("#top-ratios li").each((_, li) => {
     const k = $(li).find(".name").text().trim();

@@ -72,7 +72,7 @@ export default function Brief() {
       {feed.data.sample && <div className="mt-3"><SampleBanner /></div>}
 
       {/* Window picker */}
-      <div className="-mx-4 mt-3 flex gap-1.5 overflow-x-auto px-4 pb-1" role="tablist" aria-label="Time window">
+      <div className="-mx-4 mt-3 flex gap-1.5 overflow-x-auto no-scrollbar px-4 pb-1" role="tablist" aria-label="Time window">
         {WINDOWS.map((w) => (
           <button key={w.key} role="tab" aria-selected={win === w.key} onClick={() => setWin(w.key)}
             className={`shrink-0 rounded-full px-3 py-1.5 text-[13px] ${win === w.key ? "bg-ink text-stone" : "bg-paper text-ink"}`}>
@@ -106,7 +106,7 @@ export default function Brief() {
             <h2 className="text-[13px] font-semibold">Tripwires</h2>
             <Link href="/tripwires" className="text-[13px] text-link">Adjust</Link>
           </div>
-          <ul className="-mx-4 mt-2 flex gap-2 overflow-x-auto px-4 pb-1">
+          <ul className="-mx-4 mt-2 flex gap-2 overflow-x-auto no-scrollbar px-4 pb-1">
             {trips.map((t) => (
               <li key={t.symbol + t.date} className="shrink-0 rounded-lg border border-ink/15 bg-paper px-3 py-2">
                 <Link href={`/research/${t.symbol}`} className="block">

@@ -89,3 +89,11 @@ details > summary::-webkit-details-marker {
 input[type="range"] {
   accent-color: var(--color-ink);
 }
+
+/* horizontal chip rows scroll by swipe; no desktop scrollbar */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

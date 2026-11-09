@@ -7,7 +7,7 @@
 // silently shown.
 
 import { llmJson } from "../llm";
-import type { ResultsCard, ResultsPeriod, UsageSummary } from "../types";
+import type { ResultsCard, ResultsPeriod, Table, UsageSummary } from "../types";
 
 interface RawColumn {
   label: string;
@@ -54,7 +54,7 @@ Return JSON:
 Negative numbers (losses) as negative. Copy exactly as printed, in the printed unit.
 
 --- DOCUMENT ---
-${text.slice(0, 60000)}`;
+${text.slice(0, 45000)}`;
 }
 
 function toCrore(unit: string): number {
@@ -65,6 +65,36 @@ function toCrore(unit: string): number {
   if (/thousand|'000/.test(u)) return 0.0001;
   return 1; // crore
 }
+
+const MONTHS: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+
+/** Find a quarter-end date in a column label: "30.09.2026", "Sep'26", "September 30, 2026", "Q2 FY27". */
+export function quarterEnd(label: string): { y: number; m: number } | null {
+  const t = label.toLowerCase();
+  let m = t.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
+  if (m) {
+    const y = +m[3] < 100 ? 2000 + +m[3] : +m[3];
+    return { y, m: +m[2] };
+  }
+  m = t.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[^0-9]{0,6}(?:\d{1,2}(?:st|nd|rd|th)?,?\s*)?'?(\d{2,4})/);
+  if (m) {
+    const y = +m[2] < 100 ? 2000 + +m[2] : +m[2];
+    return { y, m: MONTHS[m[1]] };
+  }
+  m = t.match(/q([1-4])\s*fy\s*'?(\d{2,4})/);
+  if (m) {
+    const fy = +m[2] < 100 ? 2000 + +m[2] : +m[2];
+    const q = +m[1];
+    return { y: q === 4 ? fy : fy - 1, m: [6, 9, 12, 3][q - 1] };
+  }
+  return null;
+}
+export function fiscalLabel(d: { y: number; m: number }): string {
+  const q = d.m >= 4 && d.m <= 6 ? 1 : d.m <= 9 && d.m >= 7 ? 2 : d.m >= 10 ? 3 : 4;
+  const fy = d.m >= 4 ? d.y + 1 : d.y;
+  return `Q${q} FY${String(fy).slice(-2)}`;
+}
+const monthsBetween = (a: { y: number; m: number }, b: { y: number; m: number }) => (a.y - b.y) * 12 + (a.m - b.m);
 
 const r1 = (n: number | null) => (n == null || !isFinite(n) ? null : Math.round(n * 10) / 10);
 
@@ -81,8 +111,9 @@ export function buildCard(raw: RawResults): ResultsCard | null {
       ebitda = pbtPre + c.financeCosts + c.depreciation - (c.otherIncome ?? 0);
     }
     const s = (n: number | null) => (n == null ? null : r1(n * k));
+    const d = quarterEnd(c.label || "");
     return {
-      label: (c.label || "").split("(")[0].trim() || c.role,
+      label: d ? fiscalLabel(d) : (c.label || "").split("(")[0].trim() || c.role,
       revenue: s(c.revenueFromOperations),
       ebitda: s(ebitda),
       pbt: s(c.profitBeforeTax),
@@ -96,6 +127,11 @@ export function buildCard(raw: RawResults): ResultsCard | null {
   const ya = toPeriod(raw.columns.find((c) => c.role === "yearAgo"));
 
   // Sanity checks — surfaced to the user rather than hidden.
+  const dc = quarterEnd(raw.columns.find((c) => c.role === "current")?.label || "");
+  const dp = quarterEnd(raw.columns.find((c) => c.role === "prevQuarter")?.label || "");
+  const dy = quarterEnd(raw.columns.find((c) => c.role === "yearAgo")?.label || "");
+  if (dc && dp && monthsBetween(dc, dp) !== 3) warnings.push(`"Previous quarter" column is ${prev?.label}, not 3 months earlier`);
+  if (dc && dy && monthsBetween(dc, dy) !== 12) warnings.push(`"Year-ago" column is ${ya?.label}, not 12 months earlier`);
   if (!prev) warnings.push("Previous-quarter column not found");
   if (!ya) warnings.push("Year-ago column not found");
   if (cur.revenue != null && cur.revenue <= 0) warnings.push("Revenue ≤ 0 — check extraction");
@@ -115,6 +151,33 @@ export function buildCard(raw: RawResults): ResultsCard | null {
       ? "EBITDA not meaningful for lenders — interest is the business"
       : "EBITDA derived: PBT (pre-exceptional) + finance cost + D&A − other income",
     warnings,
+    source: "filing",
+  };
+}
+
+/**
+ * Fallback when the filing PDF is a scanned image: screener.in's standardised
+ * quarterly table (itself built from the exchange filings). Labelled as such.
+ */
+export function cardFromScreener(q: Table, isLender: boolean, basis: "consolidated" | "standalone"): ResultsCard | null {
+  const n = q.headers.length;
+  if (n < 2) return null;
+  const at = (i: number): ResultsPeriod | null => {
+    if (i < 0) return null;
+    const d = quarterEnd(q.headers[i]);
+    const g = (k: string) => q.rows[k]?.[i] ?? null;
+    return { label: d ? fiscalLabel(d) : q.headers[i], revenue: g("revenue"), ebitda: isLender ? null : g("op"), pbt: g("pbt"), pat: g("pat") };
+  };
+  return {
+    basis,
+    unit: "₹ Cr",
+    current: at(n - 1)!,
+    prevQuarter: at(n - 2),
+    yearAgo: n >= 5 ? at(n - 5) : null,
+    isLender,
+    ebitdaNote: isLender ? "EBITDA not meaningful for lenders — interest is the business" : "EBITDA = operating profit before other income (screener.in)",
+    warnings: [],
+    source: "screener",
   };
 }
 

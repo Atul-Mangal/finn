@@ -113,6 +113,8 @@ export function scorePriority(cat: Category, text: string): number {
       adj(/intimation|to consider|will be held|is scheduled|trading window/, -65); // a date, not the numbers
       adj(/newspaper|publication|advertisement/, -75);
       adj(/presentation|letter/, -30);
+      adj(/press release|media release/, -3); // keep the actual results filing as the primary
+      adj(/financial results|unaudited|audited/, +2);
       break;
     case "management_change":
       adj(/\b(ceo|cfo|chief executive|chief financial|managing director|whole-?time director|chairman|chairperson)\b/, +15);

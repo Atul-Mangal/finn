@@ -35,6 +35,21 @@ function priceOf(model: string): [number, number] {
   return [0, 0];
 }
 
+// Minimum spacing between model calls. The cron pipeline sets this (free-tier
+// RPM limits); interactive routes leave it at 0.
+let lastCall = 0;
+let chain: Promise<void> = Promise.resolve();
+async function throttle() {
+  const gap = Number(process.env.LLM_MIN_INTERVAL_MS || 0);
+  if (!gap) return;
+  chain = chain.then(async () => {
+    const wait = lastCall + gap - Date.now();
+    if (wait > 0) await sleep(wait);
+    lastCall = Date.now();
+  });
+  return chain;
+}
+
 let resolved: Promise<void> | null = null;
 /** Ask Gemini which models this key can call; pick the newest stable Flash-Lite / Flash. */
 async function resolveGeminiModels(): Promise<void> {
@@ -149,43 +164,65 @@ export function parseJsonLoose<T>(raw: string): T {
 }
 
 async function callGemini(model: string, tier: ModelTier, o: CallOpts) {
-  const body: Record<string, unknown> = {
+  const cap = o.maxOutputTokens ?? 4096;
+  const gen: Record<string, unknown> = {
+    temperature: o.temperature ?? (tier === "cheap" ? 0 : 0.3),
+    // Gemini 3+ models think, and thinking tokens count against the output cap,
+    // so give them headroom (you only pay for tokens used).
+    maxOutputTokens: /gemini-[3-9]/.test(model) ? Math.max(cap * 3, 8192) : cap,
+    ...(o.json ? { responseMimeType: "application/json" } : {}),
+  };
+  // Extraction needs minimal thinking; judgment gets "low" so a research report
+  // fits a serverless timeout. Dropped automatically if a model rejects it.
+  if (/gemini-[3-9]/.test(model)) gen.thinkingConfig = { thinkingLevel: tier === "cheap" ? "minimal" : "low" };
+
+  const request = () => ({
     systemInstruction: { parts: [{ text: o.system }] },
     contents: [{ role: "user", parts: [{ text: o.prompt }] }],
-    generationConfig: {
-      temperature: o.temperature ?? (tier === "cheap" ? 0 : 0.3),
-      // Gemini 3+ models think by default and thinking tokens count against the
-      // output cap, so give them headroom (you only pay for tokens used).
-      maxOutputTokens: /gemini-[3-9]/.test(model) ? Math.max((o.maxOutputTokens ?? 4096) * 3, 8192) : (o.maxOutputTokens ?? 4096),
-      ...(o.json ? { responseMimeType: "application/json" } : {}),
-      // Extraction doesn't need thinking tokens; reasoning tier keeps its default.
-      ...(tier === "cheap" && model.includes("flash") && !model.includes("lite")
-        ? { thinkingConfig: { thinkingBudget: 0 } }
-        : {}),
-    },
-  };
-  for (let attempt = 0; attempt < 4; attempt++) {
+    generationConfig: gen,
+  });
+
+  // Serverless requests have a hard timeout, so they wait less and give up sooner.
+  const serverless = !!process.env.VERCEL;
+  const attempts = serverless ? 3 : 6;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    await throttle();
     const res = await fetchWithRetry(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY! },
-        body: JSON.stringify(body),
+        body: JSON.stringify(request()),
       },
-      { retries: 0, timeoutMs: 90000 },
+      { retries: 0, timeoutMs: 120000, passStatus: true },
     );
-    if (res.status === 429 || res.status === 503) {
-      // free tier: back off and try again
-      await sleep(4000 * (attempt + 1));
+    if (res.status === 429 || res.status === 503 || res.status === 500) {
+      // Free tier: Google says how long to wait (RetryInfo.retryDelay, e.g. "23s").
+      const text = await res.text().catch(() => "");
+      const hinted = Number(text.match(/"retryDelay":\s*"(\d+(?:\.\d+)?)s"/)?.[1]);
+      await sleep(isFinite(hinted) && hinted > 0 ? Math.min(hinted, serverless ? 8 : 60) * 1000 + 500 : (serverless ? 2000 : 5000) * (attempt + 1));
       continue;
     }
-    const j = (await res.json()) as {
-      candidates?: { content?: { parts?: { text?: string }[] } }[];
+    const raw = await res.text();
+    if (res.status === 400 && gen.thinkingConfig && /thinking/i.test(raw)) {
+      delete gen.thinkingConfig; // this model doesn't take thinkingLevel: use its default
+      continue;
+    }
+    let j: {
+      candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] } }[];
       usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number };
       error?: { message: string };
     };
+    try {
+      j = JSON.parse(raw);
+    } catch {
+      throw new Error(`Gemini ${res.status}: non-JSON response`);
+    }
     if (!res.ok) throw new Error(`Gemini ${res.status}: ${j.error?.message || "error"}`);
-    const text = (j.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("");
+    const text = (j.candidates?.[0]?.content?.parts || [])
+      .filter((p) => !p.thought)
+      .map((p) => p.text || "")
+      .join("");
     if (!text) throw new Error(`Gemini returned no text (model ${model})`);
     const u = j.usageMetadata || {};
     return {

@@ -27,9 +27,11 @@ Return JSON:
  "tone": "one line on management's tone (confident / cautious / defensive) and why",
  "analystConcerns": ["top 3 themes analysts pressed on, <=12 words each"]
 }
-Rules: guidance = MANAGEMENT's explicit forward expectations (not analysts' questions, not past results).
-Prefer quantified statements; include specific qualitative ones ("double-digit growth", "margins to improve 100 bps").
-At most 10 guidance items, most important first.
+Rules: guidance = MANAGEMENT's forward expectations (not analysts' questions, not past results).
+Be thorough: scan the opening remarks AND every answer in the Q&A. Include every statement about future
+revenue/volume growth, margin bands, capex, debt, pricing, market share, launches or capacity with a number,
+a range or a clear direction ("double-digit growth", "margins in the 20–24% band", "capex of ₹800 Cr next year").
+Management often answers guidance questions in Q&A — those count. 5–10 items is typical for a full call.
 
 --- TRANSCRIPT ---
 ${text}`;
@@ -44,7 +46,7 @@ function compact(text: string): string {
 }
 
 export async function extractTranscript(doc: DocLink, usage: UsageSummary): Promise<TranscriptExtract> {
-  const key = `tx:v1:${doc.url}`;
+  const key = `tx:v2:${doc.url}`;
   const hit = await cache.get<TranscriptExtract>(key);
   if (hit) {
     usage.cacheHits++;

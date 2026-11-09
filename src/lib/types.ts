@@ -49,6 +49,7 @@ export interface ResultsCard {
   isLender: boolean; // banks/NBFCs: EBITDA not meaningful
   ebitdaNote?: string;
   warnings: string[]; // sanity-check failures, shown to the user
+  source?: "filing" | "screener"; // screener = filing PDF was a scanned image
 }
 
 export interface PersonCard {
