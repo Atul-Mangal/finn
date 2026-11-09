@@ -50,6 +50,12 @@ async function throttle() {
   return chain;
 }
 
+// Ranked candidates per tier (newest first). When a model is out of quota, the
+// next one is tried — free-tier quotas differ a lot between model versions.
+const CANDIDATES: Record<ModelTier, string[]> = { cheap: [], strong: [] };
+
+class QuotaError extends Error {}
+
 let resolved: Promise<void> | null = null;
 /** Ask Gemini which models this key can call; pick the newest stable Flash-Lite / Flash. */
 async function resolveGeminiModels(): Promise<void> {
@@ -61,15 +67,19 @@ async function resolveGeminiModels(): Promise<void> {
   const names = (j.models || [])
     .filter((m) => m.supportedGenerationMethods?.includes("generateContent"))
     .map((m) => m.name.replace(/^models\//, ""));
-  const pick = (re: RegExp) =>
+  const ranked = (re: RegExp) =>
     names
       .map((n) => ({ n, m: n.match(re) }))
       .filter((x) => x.m)
-      .sort((a, b) => parseFloat(b.m![1]) - parseFloat(a.m![1]))[0]?.n;
-  const cheap = pick(/^gemini-(\d+(?:\.\d+)?)-flash-lite$/) || pick(/^gemini-(\d+(?:\.\d+)?)-flash-lite-preview/);
-  const strong = pick(/^gemini-(\d+(?:\.\d+)?)-flash$/) || pick(/^gemini-(\d+(?:\.\d+)?)-flash-preview/);
-  if (cheap && !process.env.CHEAP_MODEL) MODELS.cheap = cheap;
-  if (strong && !process.env.STRONG_MODEL) MODELS.strong = strong;
+      .sort((a, b) => parseFloat(b.m![1]) - parseFloat(a.m![1]))
+      .map((x) => x.n);
+  const lite = ranked(/^gemini-(\d+(?:\.\d+)?)-flash-lite$/);
+  const flash = ranked(/^gemini-(\d+(?:\.\d+)?)-flash$/);
+  CANDIDATES.cheap = [...lite, ...ranked(/^gemini-(\d+(?:\.\d+)?)-flash-lite-preview/)];
+  // strong: Flash versions, newest first; Flash-Lite as a last resort
+  CANDIDATES.strong = [...flash, ...ranked(/^gemini-(\d+(?:\.\d+)?)-flash-preview/), ...lite.slice(0, 1)];
+  if (CANDIDATES.cheap[0] && !process.env.CHEAP_MODEL) MODELS.cheap = CANDIDATES.cheap[0];
+  if (CANDIDATES.strong[0] && !process.env.STRONG_MODEL) MODELS.strong = CANDIDATES.strong[0];
   console.log(`[llm] using cheap=${MODELS.cheap} strong=${MODELS.strong}`);
 }
 export function ensureModels(): Promise<void> {
@@ -116,8 +126,8 @@ interface CallOpts {
 
 export async function llm(tier: ModelTier, opts: CallOpts, usage: UsageSummary): Promise<string> {
   await ensureModels();
-  const model = MODELS[tier];
-  const key = `llm:${model}:${hashKey(opts.system + "\u0000" + opts.prompt)}`;
+  // Cache key is per tier, not per model, so a fallback model's answer is reused too.
+  const key = `llm:${tier}:${hashKey(opts.system + "\u0000" + opts.prompt)}`;
   const hit = await cache.get<string>(key);
   if (hit !== undefined) {
     usage.cacheHits++;
@@ -125,8 +135,27 @@ export async function llm(tier: ModelTier, opts: CallOpts, usage: UsageSummary):
   }
   if (!llmAvailable()) throw new Error("No LLM API key configured (GEMINI_API_KEY)");
 
-  const { text, inTok, outTok } =
-    PROVIDER === "gemini" ? await callGemini(model, tier, opts) : await callOpenAI(model, opts);
+  const pinned = tier === "cheap" ? process.env.CHEAP_MODEL : process.env.STRONG_MODEL;
+  const order = PROVIDER !== "gemini" || pinned ? [MODELS[tier]] : [MODELS[tier], ...CANDIDATES[tier].filter((m) => m !== MODELS[tier])].slice(0, 4);
+  let model = order[0];
+  let out: { text: string; inTok: number; outTok: number } | null = null;
+  let lastErr: unknown;
+  for (const m of order) {
+    model = m;
+    try {
+      out = PROVIDER === "gemini" ? await callGemini(m, tier, opts) : await callOpenAI(m, opts);
+      if (m !== MODELS[tier]) {
+        console.log(`[llm] ${tier}: ${MODELS[tier]} out of quota, switched to ${m}`);
+        MODELS[tier] = m; // stick with the model that works for the rest of this process
+      }
+      break;
+    } catch (e) {
+      lastErr = e;
+      if (!(e instanceof QuotaError) && !/404|not found|no longer available/i.test(String(e))) throw e;
+    }
+  }
+  if (!out) throw lastErr instanceof Error ? lastErr : new Error("All models failed");
+  const { text, inTok, outTok } = out;
 
   if (tier === "cheap") usage.cheapCalls++;
   else usage.strongCalls++;
@@ -184,7 +213,7 @@ async function callGemini(model: string, tier: ModelTier, o: CallOpts) {
 
   // Serverless requests have a hard timeout, so they wait less and give up sooner.
   const serverless = !!process.env.VERCEL;
-  const attempts = serverless ? 3 : 6;
+  const attempts = serverless ? 2 : 6;
   for (let attempt = 0; attempt < attempts; attempt++) {
     await throttle();
     const res = await fetchWithRetry(
@@ -199,6 +228,8 @@ async function callGemini(model: string, tier: ModelTier, o: CallOpts) {
     if (res.status === 429 || res.status === 503 || res.status === 500) {
       // Free tier: Google says how long to wait (RetryInfo.retryDelay, e.g. "23s").
       const text = await res.text().catch(() => "");
+      // "limit: 0" = this model has no free quota on this key: don't wait, switch model
+      if (res.status === 429 && /limit:\s*0\b|PerDay/i.test(text)) throw new QuotaError(`${model}: quota exhausted`);
       const hinted = Number(text.match(/"retryDelay":\s*"(\d+(?:\.\d+)?)s"/)?.[1]);
       await sleep(isFinite(hinted) && hinted > 0 ? Math.min(hinted, serverless ? 8 : 60) * 1000 + 500 : (serverless ? 2000 : 5000) * (attempt + 1));
       continue;
@@ -231,7 +262,7 @@ async function callGemini(model: string, tier: ModelTier, o: CallOpts) {
       outTok: (u.candidatesTokenCount || 0) + (u.thoughtsTokenCount || 0),
     };
   }
-  throw new Error("Gemini rate-limited after retries");
+  throw new QuotaError(`${model}: rate-limited after retries`);
 }
 
 async function callOpenAI(model: string, o: CallOpts) {

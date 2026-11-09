@@ -10,7 +10,7 @@ export const maxDuration = 30;
 export async function GET(req: Request) {
   const symbol = (new URL(req.url).searchParams.get("symbol") || "").trim().toUpperCase();
   if (!symbol) return Response.json({ error: "symbol required" }, { status: 400 });
-  const key = `base:v1:${symbol}`;
+  const key = `base:v2:${symbol}`;
   try {
     let hit = await cache.get<{ base: CompanyBase; computed: Computed }>(key);
     if (!hit) {
