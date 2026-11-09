@@ -20,7 +20,7 @@ import { pdfText } from "../src/lib/pdf";
 import { fetchEod } from "../src/lib/push/prices";
 import { attachmentUrls, fetchAnnouncements, istToIso, type BseAnnouncement } from "../src/lib/push/bse";
 import { llmClassify, ruleClassify, scorePriority, tierOf } from "../src/lib/push/classify";
-import { cardFromScreener, extractResults } from "../src/lib/push/results";
+import { cardFromScreener, extractResults, reconcile } from "../src/lib/push/results";
 import { fetchCompany } from "../src/lib/pull/screener";
 import { enrichPerson, extractPeople } from "../src/lib/push/people";
 import { batchHeadlineSummaries, filingSummary } from "../src/lib/push/summarize";
@@ -123,7 +123,7 @@ async function main() {
   if (llmAvailable()) {
     const top = items.filter((i) => i.tier === "top");
     await mapLimit(top, 2, async (it) => {
-      const key = `enrich:v1:${it.id}`;
+      const key = `enrich:v2:${it.id}`;
       const cached = await cache.get<Partial<FeedItem>>(key);
       if (cached) {
         usage.cacheHits++;
@@ -136,11 +136,11 @@ async function main() {
       try {
         if (it.category === "results") {
           let card = doc ? await extractResults(doc.text, usage) : null;
-          if (!card) {
-            // scanned PDF or a cover letter: use screener's standardised table instead
-            const co = await fetchCompany(it.symbol).catch(() => null);
-            card = co ? cardFromScreener(co.quarters, co.isLender, co.basis) : null;
-          }
+          // screener.in's standardised table: a cross-check for extracted numbers,
+          // and the fallback when the filing PDF is a scanned image or a cover letter
+          const co = await fetchCompany(it.symbol).catch(() => null);
+          if (card && co) card = reconcile(card, co.quarters);
+          if (!card && co) card = cardFromScreener(co.quarters, co.isLender, co.basis);
           if (card) patch.results = card;
           else patch.summary = "Results filing — the table couldn't be read automatically; open the filing.";
         } else if (it.category === "management_change") {

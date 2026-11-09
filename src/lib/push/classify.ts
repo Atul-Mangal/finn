@@ -109,6 +109,11 @@ export function scorePriority(cat: Category, text: string): number {
       adj(/commercial paper|repayment|redemption|\bncds?\b|debenture|interest payment/, -25); // routine debt servicing
       adj(/\bqip\b|rights issue|preferential|buy-?back|qualified institution/, +5);
       break;
+    case "M&A":
+      // setting up or folding in a wholly owned subsidiary is housekeeping, not a deal
+      adj(/incorporat\w* (of )?(a )?(new )?(wholly[- ]owned|step-down)|wholly[- ]owned subsidiary.{0,40}incorporat|struck off|strike off/, -30);
+      adj(/amalgamation of (its )?(wholly[- ]owned|subsidiar)/, -15);
+      break;
     case "results":
       adj(/intimation|to consider|will be held|is scheduled|trading window/, -65); // a date, not the numbers
       adj(/newspaper|publication|advertisement/, -75);

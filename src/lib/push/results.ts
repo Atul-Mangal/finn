@@ -191,3 +191,39 @@ export function pctChange(a: number | null | undefined, b: number | null | undef
   if (a == null || b == null || b === 0) return null;
   return ((a - b) / Math.abs(b)) * 100;
 }
+
+/**
+ * Cross-check a filing-extracted card against screener.in's quarterly table.
+ * A ~10x/100x/1000x gap means the unit was misread (e.g. ₹ million taken as
+ * crore): rescale and say so. Any other material gap is shown as a warning.
+ */
+export function reconcile(card: ResultsCard, q: Table): ResultsCard {
+  if (card.source !== "filing") return card;
+  const target = quarterEnd(card.current.label);
+  const idx = q.headers.findIndex((h) => {
+    const d = quarterEnd(h);
+    return d && target && d.y === target.y && d.m === target.m;
+  });
+  const ref = idx >= 0 ? q.rows["revenue"]?.[idx] : null;
+  const got = card.current.revenue;
+  if (ref == null || got == null || ref <= 0 || got <= 0) return card;
+  const ratio = got / ref;
+  const near = (x: number, k: number) => Math.abs(x / k - 1) < 0.2;
+  for (const k of [10, 100, 1000, 0.1, 0.01]) {
+    if (near(ratio, k)) {
+      const fix = (p: ResultsPeriod | null): ResultsPeriod | null =>
+        p && { ...p, revenue: r1(p.revenue == null ? null : p.revenue / k), ebitda: r1(p.ebitda == null ? null : p.ebitda / k), pbt: r1(p.pbt == null ? null : p.pbt / k), pat: r1(p.pat == null ? null : p.pat / k) };
+      return {
+        ...card,
+        current: fix(card.current)!,
+        prevQuarter: fix(card.prevQuarter),
+        yearAgo: fix(card.yearAgo),
+        warnings: [...card.warnings, `Unit corrected (filing figures were ${k}× screener.in's) — verify against filing`],
+      };
+    }
+  }
+  // Consolidated vs standalone or restated numbers can differ a little; flag big gaps.
+  if (!near(ratio, 1) && Math.abs(ratio - 1) > 0.25)
+    return { ...card, warnings: [...card.warnings, `Revenue differs from screener.in by ${((ratio - 1) * 100).toFixed(0)}% — check basis`] };
+  return card;
+}

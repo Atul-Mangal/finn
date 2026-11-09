@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ruleClassify, scorePriority, tierOf } from "../src/lib/push/classify";
-import { buildCard } from "../src/lib/push/results";
+import { buildCard, reconcile, quarterEnd, fiscalLabel } from "../src/lib/push/results";
 import * as cheerio from "cheerio";
 import { num } from "../src/lib/pull/screener";
 import { cagr } from "../src/lib/pull/metrics";
@@ -59,4 +59,23 @@ test("screener number parsing", () => {
   const $ = cheerio.load("<table><tr><td>-1,200</td></tr></table>");
   assert.equal(num($("td").text()), -1200);
   assert.ok(Math.abs(cagr(100, 200, 5)! - 14.87) < 0.01);
+});
+
+test("results labels and unit reconciliation", () => {
+  assert.equal(fiscalLabel(quarterEnd("Quarter Ended 30th Sep'26")!), "Q2 FY27");
+  assert.equal(fiscalLabel(quarterEnd("30.06.2026")!), "Q1 FY27");
+  assert.equal(fiscalLabel(quarterEnd("Mar 2026")!), "Q4 FY26");
+  const card = buildCard({
+    found: true, basis: "consolidated", unitAsPrinted: "Rs crore", isLender: false,
+    columns: [{ label: "Quarter ended 30.09.2026", role: "current", revenueFromOperations: 533441, otherIncome: 0, financeCosts: 0, depreciation: 0, profitBeforeExceptionalAndTax: 30000, profitBeforeTax: 30000, profitAfterTax: 24661 }],
+  })!;
+  const fixed = reconcile(card, { headers: ["Jun 2026", "Sep 2026"], rows: { revenue: [50000, 53344] } });
+  assert.equal(fixed.current.revenue, 53344.1);
+  assert.equal(fixed.current.pat, 2466.1);
+  assert.ok(fixed.warnings.some((w) => /Unit corrected/.test(w)));
+});
+
+test("subsidiary housekeeping ranks below real M&A", () => {
+  assert.ok(scorePriority("M&A", "Incorporation of a wholly owned subsidiary in Canada") < 60);
+  assert.ok(scorePriority("M&A", "Acquisition of 76% stake in XYZ Ltd") >= 60);
 });

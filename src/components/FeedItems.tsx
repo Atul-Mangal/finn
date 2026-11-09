@@ -71,6 +71,7 @@ export function ResultsBlock({ r, animate }: { r: ResultsCard; animate?: boolean
       </table>
       <p className="mt-1.5 text-[11px] text-faint">
         vs {r.prevQuarter?.label || "prev. quarter"} and {r.yearAgo?.label || "year-ago quarter"}. {r.ebitdaNote}
+        {r.source === "screener" && " Figures from screener.in because the filing PDF is a scanned image."}
       </p>
       {r.warnings.length > 0 && <p className="mt-1 text-[12px] text-down">Check against filing: {r.warnings.join("; ")}</p>}
     </div>
