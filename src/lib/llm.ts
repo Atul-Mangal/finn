@@ -19,17 +19,49 @@ import type { UsageSummary } from "./types";
 export type ModelTier = "cheap" | "strong";
 
 const PROVIDER = process.env.LLM_PROVIDER || "gemini";
+// Defaults are a starting guess; for Gemini they are re-resolved against the
+// models this API key can actually use (Google retires model names often).
 export const MODELS = {
-  cheap: process.env.CHEAP_MODEL || (PROVIDER === "gemini" ? "gemini-2.5-flash-lite" : "llama-3.1-8b-instant"),
-  strong: process.env.STRONG_MODEL || (PROVIDER === "gemini" ? "gemini-2.5-flash" : "llama-3.3-70b-versatile"),
+  cheap: process.env.CHEAP_MODEL || (PROVIDER === "gemini" ? "gemini-3.5-flash-lite" : "llama-3.1-8b-instant"),
+  strong: process.env.STRONG_MODEL || (PROVIDER === "gemini" ? "gemini-3.5-flash" : "llama-3.3-70b-versatile"),
 };
 
-// List prices, USD per 1M tokens (input, output). Used only for the cost readout.
-const PRICE: Record<string, [number, number]> = {
-  "gemini-2.5-flash-lite": [0.1, 0.4],
-  "gemini-2.5-flash": [0.3, 2.5],
-  "gemini-2.5-pro": [1.25, 10],
-};
+// Approximate list prices, USD per 1M tokens (input, output), by model family.
+// Used only for the cost readout in the UI.
+function priceOf(model: string): [number, number] {
+  if (/flash-lite/.test(model)) return [0.1, 0.4];
+  if (/flash/.test(model)) return [0.3, 2.5];
+  if (/pro/.test(model)) return [1.25, 10];
+  return [0, 0];
+}
+
+let resolved: Promise<void> | null = null;
+/** Ask Gemini which models this key can call; pick the newest stable Flash-Lite / Flash. */
+async function resolveGeminiModels(): Promise<void> {
+  const res = await fetchWithRetry("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", {
+    headers: { "x-goog-api-key": process.env.GEMINI_API_KEY! },
+  });
+  if (!res.ok) return;
+  const j = (await res.json()) as { models?: { name: string; supportedGenerationMethods?: string[] }[] };
+  const names = (j.models || [])
+    .filter((m) => m.supportedGenerationMethods?.includes("generateContent"))
+    .map((m) => m.name.replace(/^models\//, ""));
+  const pick = (re: RegExp) =>
+    names
+      .map((n) => ({ n, m: n.match(re) }))
+      .filter((x) => x.m)
+      .sort((a, b) => parseFloat(b.m![1]) - parseFloat(a.m![1]))[0]?.n;
+  const cheap = pick(/^gemini-(\d+(?:\.\d+)?)-flash-lite$/) || pick(/^gemini-(\d+(?:\.\d+)?)-flash-lite-preview/);
+  const strong = pick(/^gemini-(\d+(?:\.\d+)?)-flash$/) || pick(/^gemini-(\d+(?:\.\d+)?)-flash-preview/);
+  if (cheap && !process.env.CHEAP_MODEL) MODELS.cheap = cheap;
+  if (strong && !process.env.STRONG_MODEL) MODELS.strong = strong;
+  console.log(`[llm] using cheap=${MODELS.cheap} strong=${MODELS.strong}`);
+}
+export function ensureModels(): Promise<void> {
+  if (PROVIDER !== "gemini" || !process.env.GEMINI_API_KEY) return Promise.resolve();
+  resolved ||= resolveGeminiModels().catch(() => {});
+  return resolved;
+}
 
 export function newUsage(): UsageSummary {
   return {
@@ -68,6 +100,7 @@ interface CallOpts {
 }
 
 export async function llm(tier: ModelTier, opts: CallOpts, usage: UsageSummary): Promise<string> {
+  await ensureModels();
   const model = MODELS[tier];
   const key = `llm:${model}:${hashKey(opts.system + "\u0000" + opts.prompt)}`;
   const hit = await cache.get<string>(key);
@@ -84,7 +117,8 @@ export async function llm(tier: ModelTier, opts: CallOpts, usage: UsageSummary):
   else usage.strongCalls++;
   usage.inputTokens += inTok;
   usage.outputTokens += outTok;
-  const [pi, po] = PRICE[model] || [0, 0];
+  const [pi, po] = priceOf(model);
+  usage.models = { ...MODELS };
   usage.estCostUSD = +(usage.estCostUSD + (inTok * pi + outTok * po) / 1e6).toFixed(5);
 
   await cache.set(key, text);
@@ -120,7 +154,9 @@ async function callGemini(model: string, tier: ModelTier, o: CallOpts) {
     contents: [{ role: "user", parts: [{ text: o.prompt }] }],
     generationConfig: {
       temperature: o.temperature ?? (tier === "cheap" ? 0 : 0.3),
-      maxOutputTokens: o.maxOutputTokens ?? 4096,
+      // Gemini 3+ models think by default and thinking tokens count against the
+      // output cap, so give them headroom (you only pay for tokens used).
+      maxOutputTokens: /gemini-[3-9]/.test(model) ? Math.max((o.maxOutputTokens ?? 4096) * 3, 8192) : (o.maxOutputTokens ?? 4096),
       ...(o.json ? { responseMimeType: "application/json" } : {}),
       // Extraction doesn't need thinking tokens; reasoning tier keeps its default.
       ...(tier === "cheap" && model.includes("flash") && !model.includes("lite")
@@ -150,6 +186,7 @@ async function callGemini(model: string, tier: ModelTier, o: CallOpts) {
     };
     if (!res.ok) throw new Error(`Gemini ${res.status}: ${j.error?.message || "error"}`);
     const text = (j.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("");
+    if (!text) throw new Error(`Gemini returned no text (model ${model})`);
     const u = j.usageMetadata || {};
     return {
       text,
