@@ -60,8 +60,9 @@ This fits serverless timeouts, lets the UI show progress, and means the numbers 
 
 ## Models and cost
 
-- **Cheap tier** (`gemini-2.5-flash-lite`): classification, table copying, guidance extraction.
-- **Strong tier** (`gemini-2.5-flash`): one call per research report.
+- **Cheap tier** (newest Gemini Flash-Lite): classification, table copying, guidance extraction.
+- **Strong tier** (newest Gemini Flash): one call per research report.
+- Model names are resolved at runtime from the models the API key can actually call. Google retired `gemini-2.5-flash-lite` for new keys mid-build, and hardcoded names break.
 - Both can be swapped by environment variable. Any OpenAI-compatible provider works too (Groq, OpenRouter, local Ollama).
 - Every call is cached on (model, prompt). Token usage and list-price cost are shown in the app's footer, because cost is a feature here.
 
