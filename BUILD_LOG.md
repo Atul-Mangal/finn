@@ -1,6 +1,6 @@
 # Build log
 
-A condensed, dated log of how FINN was built. **FINN was built with Claude (Anthropic) as the coding agent**, working in a claude.ai agent workspace with push access to this repository. Atul directed the work, set up the accounts, ran and checked the live jobs, and tested the app on a phone. Claude wrote the code and docs. Times are IST. Every step below matches a commit in `git log`; the 16 `data:` commits are the scheduled jobs refreshing data.
+A condensed, dated log of how FINN was built (turn-by-turn detail: [BUILD_HISTORY.md](BUILD_HISTORY.md)). **FINN was built with Claude (Anthropic) as the coding agent**, working in a claude.ai agent workspace with push access to this repository. Atul directed the work, set up the accounts, ran and checked the live jobs, and tested the app on a phone. Claude wrote the code and docs. Times are IST. Every step below matches a commit in `git log`; the 16 `data:` commits are the scheduled jobs refreshing data.
 
 ## Day 1: Mon 9 Nov
 
