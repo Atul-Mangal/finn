@@ -32,10 +32,11 @@ export default function ResearchPage() {
   const [snapshotAt, setSnapshotAt] = useState<string | null>(null);
   const [sample, setSample] = useState(false);
   const [noLlm, setNoLlm] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const started = useRef(false);
 
   const runLive = useCallback(async () => {
-    setError(null); setSnapshotAt(null); setAnalysis(null); setExtracts([]); setUsage(ZERO); setSample(false);
+    setError(null); setSnapshotAt(null); setAnalysis(null); setAnalysisError(null); setExtracts([]); setUsage(ZERO); setSample(false);
     const st: Stage[] = [{ label: "Financial statements from screener.in", state: "run" }];
     setStages([...st]);
     const r = await fetch(`/api/research/base?symbol=${encodeURIComponent(symbol)}`);
@@ -92,7 +93,7 @@ export default function ResearchPage() {
       setAnalysis(a.analysis);
       st[last].state = "ok";
     } catch (e) {
-      st[last].state = "err"; st[last].note = (e as Error).message;
+      st[last].state = "err"; st[last].note = (e as Error).message; setAnalysisError((e as Error).message);
     }
     setStages([...st]);
   }, [symbol]);
@@ -104,7 +105,7 @@ export default function ResearchPage() {
       .then((r) => (r.ok ? (r.json() as Promise<Research>) : Promise.reject()))
       .then((r) => {
         setBase(r.base); setComputed(r.computed); setExtracts(r.extracts); setAnalysis(r.analysis); setUsage(r.usage);
-        setSnapshotAt(r.generatedAt); setSample(!!r.sample);
+        setSnapshotAt(r.generatedAt); setSample(!!r.sample); setAnalysisError(r.analysisError || null);
       })
       .catch(() => runLive());
   }, [symbol, runLive]);
@@ -146,7 +147,9 @@ export default function ResearchPage() {
             {analysis ? <Promises a={analysis} /> : noLlm ? (
               <p className="text-[14px] text-graphite">Add a GEMINI_API_KEY to read transcripts and check management&apos;s promises. The numbers below are computed without a model.</p>
             ) : running ? <p className="text-[14px] text-graphite">Reading the last {TRANSCRIPTS} earnings calls…</p> : (
-              <p className="text-[14px] text-graphite">No transcript analysis available.</p>
+              <p className="text-[14px] text-graphite">
+                {analysisError ? <>The judgment step didn&apos;t finish ({analysisError}). <button onClick={runLive} className="text-link">Try again</button></> : "No transcript analysis available."}
+              </p>
             )}
             {analysis && analysis.narrativeVsNumbers.length > 0 && (
               <div className="mt-6">

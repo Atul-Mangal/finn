@@ -220,6 +220,7 @@ export interface Research {
   computed: Computed;
   extracts: TranscriptExtract[];
   analysis: Analysis | null;
+  analysisError?: string; // the judgment step failed; numbers and extracts are still shown
   usage: UsageSummary;
   generatedAt: string;
   sample?: boolean;

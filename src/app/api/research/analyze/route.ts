@@ -4,7 +4,7 @@ import { newUsage } from "@/lib/llm";
 import { cache, hashKey } from "@/lib/cache";
 import type { Analysis, CompanyBase, Computed, TranscriptExtract } from "@/lib/types";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 interface Body {
   base: Pick<CompanyBase, "name" | "about" | "isLender" | "symbol">;

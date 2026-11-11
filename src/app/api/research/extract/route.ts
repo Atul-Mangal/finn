@@ -3,7 +3,7 @@
 import { extractTranscript } from "@/lib/pull/guidance";
 import { newUsage } from "@/lib/llm";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 export async function POST(req: Request) {
   const { url, period } = (await req.json()) as { url?: string; period?: string };

@@ -22,6 +22,7 @@ async function main() {
       const r = await runResearch(s);
       fs.writeFileSync(path.join(OUT, `${r.base.symbol}.json`), JSON.stringify(r));
       index.push({ symbol: r.base.symbol, name: r.base.name, generatedAt: r.generatedAt });
+      if (r.analysisError) console.log(`[prefetch] ${s}: judgment step failed: ${r.analysisError}`);
       console.log(`[prefetch] ${s}: ${r.extracts.length} transcripts, ${r.usage.cheapCalls}+${r.usage.strongCalls} calls, $${r.usage.estCostUSD}`);
     } catch (e) {
       console.error(`[prefetch] ${s} failed: ${(e as Error).message}`);

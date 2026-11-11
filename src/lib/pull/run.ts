@@ -18,6 +18,7 @@ export async function runResearch(symbol: string): Promise<Research> {
   const computed = compute(base);
   let extracts: Research["extracts"] = [];
   let analysis: Research["analysis"] = null;
+  let analysisError: string | undefined;
   if (llmAvailable()) {
     const docs = base.transcripts.slice(0, TRANSCRIPTS_TO_READ).reverse(); // screener lists newest first
     extracts = await mapLimit(docs, 2, async (d) => {
@@ -26,7 +27,12 @@ export async function runResearch(symbol: string): Promise<Research> {
       Object.assign(usage, mergeUsage(usage, u));
       return x;
     });
-    analysis = await analyze(base, computed, extracts, usage);
+    try {
+      analysis = await analyze(base, computed, extracts, usage);
+    } catch (e) {
+      // keep the report: numbers and transcript extracts are still worth showing
+      analysisError = (e as Error).message;
+    }
   }
-  return { base, computed, extracts, analysis, usage, generatedAt: new Date().toISOString() };
+  return { base, computed, extracts, analysis, analysisError, usage, generatedAt: new Date().toISOString() };
 }

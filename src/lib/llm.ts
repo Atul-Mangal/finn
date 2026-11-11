@@ -54,6 +54,7 @@ async function throttle() {
 // next one is tried — free-tier quotas differ a lot between model versions.
 const CANDIDATES: Record<ModelTier, string[]> = { cheap: [], strong: [] };
 
+/** This model can't serve the request right now (no quota, or too slow): try the next one. */
 class QuotaError extends Error {}
 
 let resolved: Promise<void> | null = null;
@@ -142,8 +143,11 @@ export async function llm(tier: ModelTier, opts: CallOpts, usage: UsageSummary):
   let lastErr: unknown;
   for (const m of order) {
     model = m;
+    const t0 = Date.now();
     try {
       out = PROVIDER === "gemini" ? await callGemini(m, tier, opts) : await callOpenAI(m, opts);
+      if (!process.env.VERCEL)
+        console.log(`[llm] ${tier} ${m}: ${((Date.now() - t0) / 1000).toFixed(1)}s, ${out.inTok} in / ${out.outTok} out`);
       if (m !== MODELS[tier]) {
         console.log(`[llm] ${tier}: ${MODELS[tier]} out of quota, switched to ${m}`);
         MODELS[tier] = m; // stick with the model that works for the rest of this process
@@ -151,6 +155,7 @@ export async function llm(tier: ModelTier, opts: CallOpts, usage: UsageSummary):
       break;
     } catch (e) {
       lastErr = e;
+      if (!process.env.VERCEL) console.log(`[llm] ${tier} ${m} failed after ${((Date.now() - t0) / 1000).toFixed(0)}s: ${(e as Error).message}`);
       if (!(e instanceof QuotaError) && !/404|not found|no longer available/i.test(String(e))) throw e;
     }
   }
@@ -223,8 +228,12 @@ async function callGemini(model: string, tier: ModelTier, o: CallOpts) {
         headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY! },
         body: JSON.stringify(request()),
       },
-      { retries: 0, timeoutMs: 120000, passStatus: true },
-    );
+      // Batch jobs can wait; an interactive request can't. A timeout means "try the next model".
+      { retries: 0, timeoutMs: serverless ? (tier === "strong" ? 150000 : 50000) : tier === "strong" ? 240000 : 120000, passStatus: true },
+    ).catch((e: Error) => {
+      if (/abort/i.test(e.message)) throw new QuotaError(`${model}: timed out`);
+      throw e;
+    });
     if (res.status === 429 || res.status === 503 || res.status === 500) {
       // Free tier: Google says how long to wait (RetryInfo.retryDelay, e.g. "23s").
       const text = await res.text().catch(() => "");
