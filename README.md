@@ -31,7 +31,7 @@ GitHub Actions (hourly in market hours + after close)          Vercel (Next.js, 
 | Guidance | Cheap model, one call per transcript, cached forever per URL | A transcript never changes |
 | Promise vs delivered, bull/bear | **One** strong-model call over compact extracted facts | The only step that needs reasoning |
 
-A typical feed refresh is mostly cache hits. A fresh research run is 5 small-model calls and 1 large-model call: roughly ₹2–3 at list price, and ₹0 on Gemini's free tier.
+Measured costs: an hourly feed refresh is mostly cache hits (often zero new model calls). A fresh research report is 5 small-model calls plus 1 large-model call, about $0.01–0.015 (~₹1) at list price, and ₹0 on Gemini's free tier. Every number on screen is cross-checked or computed in code; see [DECISIONS.md](DECISIONS.md#what-real-data-broke-and-what-changed).
 
 ## Run it
 

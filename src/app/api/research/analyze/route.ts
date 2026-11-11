@@ -16,7 +16,7 @@ export async function POST(req: Request) {
   const body = (await req.json()) as Body;
   if (!body?.base?.name || !body.computed?.qualityTable) return Response.json({ error: "bad request" }, { status: 400 });
   const usage = newUsage();
-  const key = `analysis:v1:${body.base.symbol}:${hashKey(JSON.stringify(body.extracts.map((e) => e.url)) + body.computed.qualityTable)}`;
+  const key = `analysis:v2:${body.base.symbol}:${hashKey(JSON.stringify(body.extracts.map((e) => e.url)) + body.computed.qualityTable)}`;
   try {
     const hit = await cache.get<Analysis>(key);
     if (hit) {

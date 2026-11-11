@@ -66,6 +66,22 @@ This fits serverless timeouts, lets the UI show progress, and means the numbers 
 - Both can be swapped by environment variable. Any OpenAI-compatible provider works too (Groq, OpenRouter, local Ollama).
 - Every call is cached on (model, prompt). Token usage and list-price cost are shown in the app's footer, because cost is a feature here.
 
+## What real data broke, and what changed
+
+The first live runs found problems that the sample data couldn't. Each fix is in the git history.
+
+| What happened | Fix |
+|---|---|
+| Maruti files results in ₹ million; the model read it as crore, so revenue came out 10× too high. | Every extracted results card is reconciled with screener.in's figure for the same quarter. A 10×/100× gap is rescaled and flagged. Any other gap over 25% (ITC, ICICI, HDFC Bank) means a misread column, so the card shows screener.in's figures and says why. We never show a number we know disagrees with another source. |
+| Some results PDFs are scanned images with no text (Maruti, KPIT, Deepak Nitrite). | Fall back to screener.in's standardised quarterly table, labelled as the source. |
+| HDFC Bank's "previous quarter" column was actually March. | Column dates are parsed and checked (previous = 3 months earlier, year-ago = 12 months). Labels are normalised to "Q2 FY27". |
+| Employee-stock allotments ranked as fund raises; incorporating a ₹-trivial Canadian subsidiary ranked as major M&A. | Rules tightened, with regression tests. |
+| Google retired `gemini-2.5-flash-lite` for new keys mid-build. | Models are discovered from the key's own model list; the newest Flash-Lite / Flash are picked automatically. |
+| The two newest Flash models were listed but hung for over 4 minutes on the free tier; 3.6 answered in 10–50 s. | A timeout or zero quota moves to the next model. The jobs record which models answered in `data/models.json`, which ships with each deploy, so the app starts with a model that works. |
+| Bank research said "OPM is −6%". screener's bank "financing margin" isn't an operating margin. | For lenders the margin column and its flags are dropped. Verdicts that rely only on management's own later claim are marked "unverifiable", labelled "Per management". |
+| The research job and the hourly refresh both wrote the same cache file, and a merge conflict lost a run's output. | Separate cache files. Each job re-applies its outputs on top of the latest main before pushing. |
+| One failed model call threw away a whole research report. | Reports are saved with numbers and transcript extracts even if the judgment step fails, and the UI offers a retry. |
+
 ## What I deliberately left out
 
 - **Real push notifications.** Web Push needs a subscription server and iOS home-screen install. The Tripwires screen shows what *would* have fired; delivery is the obvious next step.

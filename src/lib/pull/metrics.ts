@@ -103,7 +103,8 @@ export function compute(b: CompanyBase): Computed {
   }
   const opmRecent = avg(lastN(opmV, 3)),
     opmPrior = avg(opmV.slice(-6, -3));
-  if (opmRecent != null && opmPrior != null) {
+  // screener's "financing margin" for banks isn't comparable (it can be negative): skip
+  if (!b.isLender && opmRecent != null && opmPrior != null) {
     const bps = (opmRecent - opmPrior) * 100;
     if (Math.abs(bps) >= 150)
       tFlags.push({
@@ -193,7 +194,7 @@ export function compute(b: CompanyBase): Computed {
     { label: "Market cap", value: tr["Market Cap"]?.replace(/\s*Cr\.?/, " Cr") || "—" },
     { label: "Revenue (TTM)", value: fmtCr(ttmRev) },
     { label: "PAT (TTM)", value: fmtCr(ttmPat) },
-    { label: b.isLender ? "Fin. margin (last Q)" : "OPM (last Q)", value: qOpm[qn - 1] != null ? `${qOpm[qn - 1]}%` : "—" },
+    ...(b.isLender ? [] : [{ label: "OPM (last Q)", value: qOpm[qn - 1] != null ? `${qOpm[qn - 1]}%` : "—" }]),
     { label: "ROCE", value: tr["ROCE"] || "—" },
     { label: "ROE", value: tr["ROE"] || "—" },
     { label: "P/E", value: tr["Stock P/E"] || "—" },
@@ -216,20 +217,24 @@ function qualityTable(b: CompanyBase): string {
   const Q = b.quarters,
     A = b.annual;
   const f = (v: number | null | undefined, d = 0) => (v == null ? "-" : v.toFixed(d));
-  const lines: string[] = ["QUARTERLY (₹ Cr; YoY% computed vs same quarter prior year)", "Quarter | Revenue | Rev YoY% | OPM% | PAT | PAT YoY%"];
+  const L = b.isLender;
+  const lines: string[] = [
+    `QUARTERLY (₹ Cr; YoY% computed vs same quarter prior year)${L ? " — lender: Revenue = interest + other income; no operating-margin column" : ""}`,
+    L ? "Quarter | Revenue | Rev YoY% | PAT | PAT YoY%" : "Quarter | Revenue | Rev YoY% | OPM% | PAT | PAT YoY%",
+  ];
   const qr = row(Q, "revenue"),
     qp = row(Q, "pat"),
     qo = row(Q, "opm");
   for (let i = 0; i < Q.headers.length; i++)
-    lines.push(`${Q.headers[i]} | ${f(qr[i])} | ${i >= 4 ? f(pct(qr[i], qr[i - 4]), 1) : "-"} | ${f(qo[i])} | ${f(qp[i])} | ${i >= 4 ? f(pct(qp[i], qp[i - 4]), 1) : "-"}`);
-  lines.push("", "ANNUAL (₹ Cr)", "Year | Revenue | Rev growth% | OPM% | PAT | CFO");
+    lines.push(`${Q.headers[i]} | ${f(qr[i])} | ${i >= 4 ? f(pct(qr[i], qr[i - 4]), 1) : "-"}${L ? "" : ` | ${f(qo[i])}`} | ${f(qp[i])} | ${i >= 4 ? f(pct(qp[i], qp[i - 4]), 1) : "-"}`);
+  lines.push("", "ANNUAL (₹ Cr)", L ? "Year | Revenue | Rev growth% | PAT | CFO" : "Year | Revenue | Rev growth% | OPM% | PAT | CFO");
   const ar = row(A, "revenue"),
     ap = row(A, "pat"),
     ao = row(A, "opm");
   const cfoBy = new Map(b.cashflow.headers.map((h, i) => [h, row(b.cashflow, "cfo")[i]]));
   const start = Math.max(0, A.headers.length - 7);
   for (let i = start; i < A.headers.length; i++)
-    lines.push(`${A.headers[i]} | ${f(ar[i])} | ${i > 0 ? f(pct(ar[i], ar[i - 1]), 1) : "-"} | ${f(ao[i])} | ${f(ap[i])} | ${f(cfoBy.get(A.headers[i]))}`);
+    lines.push(`${A.headers[i]} | ${f(ar[i])} | ${i > 0 ? f(pct(ar[i], ar[i - 1]), 1) : "-"}${L ? "" : ` | ${f(ao[i])}`} | ${f(ap[i])} | ${f(cfoBy.get(A.headers[i]))}`);
   const bs = b.balance;
   lines.push("", "BALANCE SHEET (₹ Cr)", "Year | Borrowings | Net worth | CWIP");
   for (let i = Math.max(0, bs.headers.length - 5); i < bs.headers.length; i++) {

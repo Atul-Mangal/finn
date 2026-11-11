@@ -33,7 +33,7 @@ export async function analyze(
   const latest = ok[ok.length - 1];
   const flags = [...computed.trajectory.flags, ...computed.balance.flags, ...computed.cash.flags].map((f) => `- ${f.text}`).join("\n");
 
-  const prompt = `Company: ${base.name}${base.isLender ? " (lender — judge on loan growth, margins, asset quality if mentioned)" : ""}
+  const prompt = `Company: ${base.name}${base.isLender ? " (LENDER — the tables have no margin or asset-quality data; judge on revenue, profit, deposits/borrowings, and say 'unverifiable' for NIM, asset-quality, CD-ratio or loan-growth targets)" : ""}
 Business description (from screener): ${base.about || "n/a"}
 Segments (latest call): ${latest?.segments.map((s) => `${s.name}: ${s.comment}`).join("; ") || "n/a"}
 
@@ -63,7 +63,8 @@ Return JSON:
  "bull": ["3 points, <=25 words each, each citing a number or quote"],
  "bear": ["3 points, <=25 words each, each citing a number or quote"]
 }
-Promises: take guidance from the OLDER calls whose horizon has (at least partly) passed, and check it against later delivered numbers. Up to 8, most material first. Use "pending" if the horizon hasn't arrived, "unverifiable" if the tables can't measure it (e.g. segment-level targets).
+Promises: take guidance from the OLDER calls whose horizon has (at least partly) passed, and check it against later delivered numbers.
+"delivered"/"missed"/"partial" require evidence from the DELIVERED NUMBERS tables. If the only evidence is management's own later statement on a call, verdict is "unverifiable" and "delivered" starts with "Per management (Qx):". Up to 8, most material first. Use "pending" if the horizon hasn't arrived, "unverifiable" if the tables can't measure it (e.g. segment-level targets).
 narrativeVsNumbers: 3–5 points. guidanceNow: up to 6 items from the latest call.`;
 
   const r = await llmJson<Analysis>("strong", { system: SYSTEM, prompt, maxOutputTokens: 8000, temperature: 0.2 }, usage);
