@@ -148,7 +148,13 @@ export default function ResearchPage() {
               <p className="text-[14px] text-graphite">Add a GEMINI_API_KEY to read transcripts and check management&apos;s promises. The numbers below are computed without a model.</p>
             ) : running ? <p className="text-[14px] text-graphite">Reading the last {TRANSCRIPTS} earnings calls…</p> : (
               <p className="text-[14px] text-graphite">
-                {analysisError ? <>The judgment step didn&apos;t finish ({analysisError}). <button onClick={runLive} className="text-link">Try again</button></> : "No transcript analysis available."}
+                {analysisError ? (
+                  /quota|rate-limited|timed out|429|503/i.test(analysisError) ? (
+                    <>FINN runs on a free AI tier and today&apos;s allowance for the promise check is used up. Everything below is complete; the promise check works again after the daily reset. <button onClick={runLive} className="text-link">Try again</button></>
+                  ) : (
+                    <>The promise check didn&apos;t finish ({analysisError}). <button onClick={runLive} className="text-link">Try again</button></>
+                  )
+                ) : "No transcript analysis available."}
               </p>
             )}
             {analysis && analysis.narrativeVsNumbers.length > 0 && (

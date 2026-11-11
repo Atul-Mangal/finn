@@ -94,7 +94,7 @@ The first live runs found problems that the sample data couldn't. Each fix is in
 
 - The BSE and screener.in page formats can change; parsers are isolated in single files so they're easy to fix.
 - Scanned-image PDFs return no text. FINN says so rather than guessing.
-- The free Gemini tier is rate-limited. The pipeline caps concurrency at 2 and backs off on 429s.
+- FINN runs on Gemini's free tier on purpose (₹0 to run). Each model version allows only a handful of judgment calls a day. The demo reports are pre-computed and unaffected. A brand-new ticker researched live after the day's quota is spent still gets all the numbers, charts and flags, but the promise check says so plainly and works again after the daily reset. Paid tier: about ₹1 per report, no code changes.
 
 ## Where I'd take it next
 
