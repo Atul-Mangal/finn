@@ -82,7 +82,11 @@ async function resolveGeminiModels(): Promise<void> {
   CANDIDATES.cheap = [...lite, ...ranked(/^gemini-(\d+(?:\.\d+)?)-flash-lite-preview/)];
   // strong: Flash versions, newest first; Flash-Lite as a last resort
   CANDIDATES.strong = [...flash, ...ranked(/^gemini-(\d+(?:\.\d+)?)-flash-preview/), ...lite.slice(0, 1)];
-  const preferFirst = (list: string[], m?: string) => (m && list.includes(m) ? [m, ...list.filter((x) => x !== m)] : list);
+  const slow: string[] = (known as { slow?: string[] }).slow || [];
+  const preferFirst = (list: string[], m?: string) => {
+    const ordered = m && list.includes(m) ? [m, ...list.filter((x) => x !== m)] : list;
+    return [...ordered.filter((x) => !slow.includes(x)), ...ordered.filter((x) => slow.includes(x))];
+  };
   CANDIDATES.cheap = preferFirst(CANDIDATES.cheap, known.cheap);
   CANDIDATES.strong = preferFirst(CANDIDATES.strong, known.strong);
   if (CANDIDATES.cheap[0] && !process.env.CHEAP_MODEL) MODELS.cheap = CANDIDATES.cheap[0];
@@ -91,6 +95,8 @@ async function resolveGeminiModels(): Promise<void> {
 }
 /** Models that have answered successfully in this process (for data/models.json). */
 export const WORKED: Partial<Record<ModelTier, string>> = {};
+/** Models that hung past the timeout in this process: tried last next time. */
+export const SLOW = new Set<string>();
 
 export function ensureModels(): Promise<void> {
   if (PROVIDER !== "gemini" || !process.env.GEMINI_API_KEY) return Promise.resolve();
@@ -165,6 +171,7 @@ export async function llm(tier: ModelTier, opts: CallOpts, usage: UsageSummary):
       break;
     } catch (e) {
       lastErr = e;
+      if (/timed out/.test(String(e))) SLOW.add(m);
       if (!process.env.VERCEL) console.log(`[llm] ${tier} ${m} failed after ${((Date.now() - t0) / 1000).toFixed(0)}s: ${(e as Error).message}`);
       if (!(e instanceof QuotaError) && !/404|not found|no longer available/i.test(String(e))) throw e;
     }

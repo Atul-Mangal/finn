@@ -236,10 +236,15 @@ function qualityTable(b: CompanyBase): string {
   for (let i = start; i < A.headers.length; i++)
     lines.push(`${A.headers[i]} | ${f(ar[i])} | ${i > 0 ? f(pct(ar[i], ar[i - 1]), 1) : "-"}${L ? "" : ` | ${f(ao[i])}`} | ${f(ap[i])} | ${f(cfoBy.get(A.headers[i]))}`);
   const bs = b.balance;
-  lines.push("", "BALANCE SHEET (₹ Cr)", "Year | Borrowings | Net worth | CWIP");
+  lines.push("", "BALANCE SHEET (₹ Cr)", L ? "Year | Deposits | Deposit growth% | Borrowings | Net worth" : "Year | Borrowings | Net worth | CWIP");
+  const dep = row(bs, "deposits");
   for (let i = Math.max(0, bs.headers.length - 5); i < bs.headers.length; i++) {
     const nw = (row(bs, "equity")[i] ?? 0) + (row(bs, "reserves")[i] ?? 0);
-    lines.push(`${bs.headers[i]} | ${f(row(bs, "borrowings")[i])} | ${f(nw)} | ${f(row(bs, "cwip")[i])}`);
+    lines.push(
+      L
+        ? `${bs.headers[i]} | ${f(dep[i])} | ${i > 0 ? f(pct(dep[i], dep[i - 1]), 1) : "-"} | ${f(row(bs, "borrowings")[i])} | ${f(nw)}`
+        : `${bs.headers[i]} | ${f(row(bs, "borrowings")[i])} | ${f(nw)} | ${f(row(bs, "cwip")[i])}`,
+    );
   }
   return lines.join("\n");
 }
