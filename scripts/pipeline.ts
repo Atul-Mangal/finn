@@ -158,6 +158,34 @@ async function main() {
       Object.assign(it, patch);
     });
 
+    // Mid-tier items whose subject says nothing ("Credit Rating", "Disclosure under
+    // Regulation 30"): read the filing's first pages instead. Capped per run (free tier).
+    const generic = items
+      .filter((i) => i.tier === "normal" && !i.summary && ["credit_rating", "press_release", "litigation", "fund_raise", "insider_trading", "M&A", "capex"].includes(i.category))
+      .filter((i) => i.headline.length < 45 || /regulation 30|disclosure under|^updates?$|intimation$/i.test(i.headline))
+      .slice(0, 12);
+    await mapLimit(generic, 2, async (it) => {
+      const key = `enrich:v3:${it.id}`;
+      const cached = await cache.get<Partial<FeedItem>>(key);
+      if (cached) {
+        usage.cacheHits++;
+        Object.assign(it, cached);
+        return;
+      }
+      try {
+        const a = byId.get(it.id)!;
+        const doc = await tryPdf(a.ATTACHMENTNAME);
+        if (!doc) return;
+        const line = await filingSummary(it.company, it.headline, doc.text, usage);
+        if (line) {
+          it.summary = line;
+          await cache.set(key, { summary: line });
+        }
+      } catch (e) {
+        errors.push(`enrich ${it.symbol} ${it.id}: ${(e as Error).message}`);
+      }
+    });
+
     // A one-liner adds nothing to "Earnings call transcript" — that lives in Research.
     const mid = items.filter((i) => i.tier === "normal" && !i.summary && !["earnings_call", "investor_meetings"].includes(i.category));
     const lines = await batchHeadlineSummaries(

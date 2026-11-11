@@ -52,3 +52,19 @@ export function pctChange(a: number | null | undefined, b: number | null | undef
   if (a == null || b == null || b === 0) return null;
   return ((a - b) / Math.abs(b)) * 100;
 }
+
+/** The promise-ledger headline, counted in code so it's consistent across companies. */
+export function scoreLine(promises: { verdict: string }[]): string {
+  const n = (v: string) => promises.filter((p) => p.verdict === v).length;
+  const kept = n("delivered"),
+    missed = n("missed"),
+    partial = n("partial"),
+    open = n("pending") + n("unverifiable");
+  const checkable = kept + missed + partial;
+  if (!promises.length) return "No explicit guidance found in the recent calls.";
+  if (!checkable) return `None of ${promises.length} promises can be checked against the filed numbers yet.`;
+  const parts = [`Kept ${kept} of ${checkable} checkable promise${checkable > 1 ? "s" : ""}`];
+  if (missed) parts.push(`${missed} missed`);
+  if (partial) parts.push(`${partial} partly met`);
+  return parts.join("; ") + "." + (open ? ` ${open} more can't be checked yet.` : "");
+}

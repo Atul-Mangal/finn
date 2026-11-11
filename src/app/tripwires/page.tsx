@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useFeed, useNow, usePrices, useSettings } from "@/lib/client";
 import { DEFAULT_SETTINGS, filingTrips, priceTrips } from "@/lib/alerts";
 import { CATEGORY_LABEL, ago, dayLabel, signedPct, toneOf } from "@/lib/format";
@@ -14,6 +14,7 @@ export default function Tripwires() {
   const feed = useFeed();
   const [s, set] = useSettings();
   const now = useNow();
+  const [showAll, setShowAll] = useState(false);
 
   const history = useMemo(() => (prices.data ? priceTrips(prices.data, s, CALIBRATION_SESSIONS) : []), [prices.data, s]);
   const recent = history.filter((t) => {
@@ -61,7 +62,7 @@ export default function Tripwires() {
           <p className="mt-2 text-[14px] text-graphite">Nothing crossed your thresholds.</p>
         ) : (
           <ul className="mt-1">
-            {recent.map((t) => (
+            {(showAll ? recent : recent.slice(0, 8)).map((t) => (
               <li key={t.symbol + t.date} className="flex items-baseline justify-between border-t border-rule py-2 text-[14px] first:border-t-0">
                 <Link href={`/research/${t.symbol}`} className="font-semibold">{t.symbol}</Link>
                 <span className="num flex-1 px-3 text-graphite">
@@ -72,6 +73,11 @@ export default function Tripwires() {
               </li>
             ))}
           </ul>
+        )}
+        {recent.length > 8 && (
+          <button className="mt-1 text-[13px] text-link" onClick={() => setShowAll(!showAll)}>
+            {showAll ? "Show fewer" : `Show all ${recent.length}`}
+          </button>
         )}
       </section>
 

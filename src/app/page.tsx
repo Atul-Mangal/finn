@@ -47,8 +47,16 @@ export default function Brief() {
     const routine = inWin.filter((i) => i.tier === "routine");
     const groups = new Map<Category, FeedItem[]>();
     routine.forEach((i) => groups.set(i.category, [...(groups.get(i.category) || []), i]));
-    return { total: inWin.length, open, handled, normal, routine, groups: [...groups.entries()].sort((a, b) => b[1].length - a[1].length) };
-  }, [feed.data, sinceMs, settings, marks.done]);
+    // A quiet window shouldn't hide the week: show what mattered recently.
+    const earlier =
+      open.length < 2
+        ? feed.data.items
+            .filter((i) => i.tier === "top" && Date.parse(i.time) < sinceMs && Date.parse(i.time) >= now - 7 * 864e5 && !marks.done[i.id] && !settings.muted.includes(i.symbol))
+            .sort(rank)
+            .slice(0, 6)
+        : [];
+    return { total: inWin.length, open, handled, normal, routine, earlier, groups: [...groups.entries()].sort((a, b) => b[1].length - a[1].length) };
+  }, [feed.data, sinceMs, settings, marks.done, now]);
 
   const trips = useMemo(() => (prices.data ? priceTrips(prices.data, settings, 1) : []), [prices.data, settings]);
   const filingAlerts = useMemo(() => (feed.data ? filingTrips(feed.data, settings, sinceMs) : []), [feed.data, settings, sinceMs]);
@@ -143,7 +151,23 @@ export default function Brief() {
         </section>
       )}
 
-      {view.total === 0 && (
+      {view.earlier.length > 0 && (
+        <section className="mt-6" aria-label="Earlier this week">
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-[13px] font-semibold">Earlier this week</h2>
+            <button className="text-[13px] text-link" onClick={() => setWin("7d")}>Show the week</button>
+          </div>
+          <div className="mt-2 space-y-3">
+            {view.earlier.map((i, idx) => (
+              <div id={`item-${i.id}`} key={i.id} className="scroll-mt-4">
+                <TopCard item={i} series={prices.data?.series[i.symbol]} isNew={isNew(i)} done={false} onDone={() => toggleDone(i.id)} animate={idx < 2} />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {view.total === 0 && view.earlier.length === 0 && (
         <div className="mt-6 rounded-xl bg-paper p-4 text-[14px] text-graphite">
           No filings {winLabel}.{" "}
           {win !== "30d" && <button className="text-link" onClick={() => setWin(win === "24h" ? "3d" : win === "3d" ? "7d" : "30d")}>Look further back</button>}

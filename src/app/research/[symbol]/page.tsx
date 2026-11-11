@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Analysis, CompanyBase, Computed, Flag, Metric, Research, TranscriptExtract, UsageSummary, Verdict } from "@/lib/types";
-import { ago, signedPct, toneOf } from "@/lib/format";
+import { ago, scoreLine, signedPct, toneOf } from "@/lib/format";
 import { Bars } from "@/components/Spark";
 import { SampleBanner } from "@/components/SampleBanner";
 
@@ -282,13 +282,9 @@ const VERDICT: Record<Verdict["verdict"], { label: string; cls: string }> = {
 };
 
 function Promises({ a }: { a: Analysis }) {
-  const counts = a.promises.reduce<Record<string, number>>((m, p) => ({ ...m, [p.verdict]: (m[p.verdict] || 0) + 1 }), {});
   return (
     <div>
-      {a.scorecard && <p className="font-serif text-[22px] leading-[1.2]"><span className="mark mark-draw">{a.scorecard}</span></p>}
-      <p className="num mt-2 text-[12px] text-graphite">
-        {(["delivered", "partial", "missed", "pending", "unverifiable"] as const).filter((k) => counts[k]).map((k) => `${counts[k]} ${VERDICT[k].label.toLowerCase()}`).join(", ")}
-      </p>
+      <p className="font-serif text-[22px] leading-[1.2]"><span className="mark mark-draw">{scoreLine(a.promises)}</span></p>
       <ol className="mt-4 space-y-4">
         {a.promises.map((p, i) => (
           <li key={i} className="rounded-xl bg-paper px-4 py-3">

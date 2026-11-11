@@ -178,6 +178,9 @@ export function Row({ item, isNew }: { item: FeedItem; isNew: boolean }) {
         ) : (
           item.summary || item.headline
         )}
+        {item.category === "earnings_call" && /transcript/i.test(item.headline) && (
+          <Link href={`/research/${item.symbol}`} className="ml-2 text-[13px] text-link">Check promises vs delivery</Link>
+        )}
       </p>
     </li>
   );
