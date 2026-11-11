@@ -62,4 +62,4 @@ src/app/          Brief (/), Tripwires, Research + API routes
 scripts/          pipeline, research prefetch, sample data, portfolio check
 ```
 
-See [DECISIONS.md](DECISIONS.md) for the trade-offs and what was left out.
+See [DECISIONS.md](DECISIONS.md) for the trade-offs and what was left out, and [BUILD_LOG.md](BUILD_LOG.md) for how it was built with Claude, step by step.
