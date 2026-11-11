@@ -159,8 +159,8 @@ export function buildCard(raw: RawResults): ResultsCard | null {
  * Fallback when the filing PDF is a scanned image: screener.in's standardised
  * quarterly table (itself built from the exchange filings). Labelled as such.
  */
-export function cardFromScreener(q: Table, isLender: boolean, basis: "consolidated" | "standalone"): ResultsCard | null {
-  const n = q.headers.length;
+export function cardFromScreener(q: Table, isLender: boolean, basis: "consolidated" | "standalone", at_?: number): ResultsCard | null {
+  const n = (at_ ?? q.headers.length - 1) + 1;
   if (n < 2) return null;
   const at = (i: number): ResultsPeriod | null => {
     if (i < 0) return null;
@@ -194,8 +194,13 @@ export function pctChange(a: number | null | undefined, b: number | null | undef
 
 /**
  * Cross-check a filing-extracted card against screener.in's quarterly table.
- * A ~10x/100x/1000x gap means the unit was misread (e.g. ₹ million taken as
- * crore): rescale and say so. Any other material gap is shown as a warning.
+ * - A ~10x/100x/1000x gap means the unit was misread (e.g. ₹ million read as
+ *   crore): rescale and say so.
+ * - Any other gap over 25% means the model read the wrong column or basis; we
+ *   don't show a number we know disagrees — switch to screener's figures and
+ *   say why.
+ * Lenders are compared on PAT: "revenue" means total income in a bank's filing
+ * but interest earned on screener.
  */
 export function reconcile(card: ResultsCard, q: Table): ResultsCard {
   if (card.source !== "filing") return card;
@@ -204,8 +209,10 @@ export function reconcile(card: ResultsCard, q: Table): ResultsCard {
     const d = quarterEnd(h);
     return d && target && d.y === target.y && d.m === target.m;
   });
-  const ref = idx >= 0 ? q.rows["revenue"]?.[idx] : null;
-  const got = card.current.revenue;
+  if (idx < 0) return card; // screener hasn't caught up with this quarter yet
+  const key = card.isLender ? "pat" : "revenue";
+  const ref = q.rows[key]?.[idx] ?? null;
+  const got = card.current[key];
   if (ref == null || got == null || ref <= 0 || got <= 0) return card;
   const ratio = got / ref;
   const near = (x: number, k: number) => Math.abs(x / k - 1) < 0.2;
@@ -222,8 +229,12 @@ export function reconcile(card: ResultsCard, q: Table): ResultsCard {
       };
     }
   }
-  // Consolidated vs standalone or restated numbers can differ a little; flag big gaps.
-  if (!near(ratio, 1) && Math.abs(ratio - 1) > 0.25)
-    return { ...card, warnings: [...card.warnings, `Revenue differs from screener.in by ${((ratio - 1) * 100).toFixed(0)}% — check basis`] };
+  if (Math.abs(ratio - 1) > 0.25) {
+    const alt = cardFromScreener(q, card.isLender, card.basis, idx);
+    if (alt) {
+      alt.warnings.push(`Automatic read of the filing disagreed with screener.in by ${((ratio - 1) * 100).toFixed(0)}% on ${key === "pat" ? "PAT" : "revenue"} — showing screener.in's figures`);
+      return alt;
+    }
+  }
   return card;
 }

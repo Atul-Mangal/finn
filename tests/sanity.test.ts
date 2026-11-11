@@ -73,6 +73,11 @@ test("results labels and unit reconciliation", () => {
   assert.equal(fixed.current.revenue, 53344.1);
   assert.equal(fixed.current.pat, 2466.1);
   assert.ok(fixed.warnings.some((w) => /Unit corrected/.test(w)));
+  // a 50% disagreement that isn't a unit slip -> screener's figures, with a note
+  const off = reconcile({ ...card, current: { ...card.current, revenue: 80000 } }, { headers: ["Jun 2026", "Sep 2026"], rows: { revenue: [50000, 53344], pat: [2000, 2466] } });
+  assert.equal(off.source, "screener");
+  assert.equal(off.current.revenue, 53344);
+  assert.ok(off.warnings.some((w) => /disagreed/.test(w)));
 });
 
 test("subsidiary housekeeping ranks below real M&A", () => {

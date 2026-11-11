@@ -123,7 +123,7 @@ async function main() {
   if (llmAvailable()) {
     const top = items.filter((i) => i.tier === "top");
     await mapLimit(top, 2, async (it) => {
-      const key = `enrich:v2:${it.id}`;
+      const key = `enrich:v3:${it.id}`;
       const cached = await cache.get<Partial<FeedItem>>(key);
       if (cached) {
         usage.cacheHits++;
@@ -165,6 +165,25 @@ async function main() {
     );
     for (const i of mid) if (lines[i.id]) i.summary = lines[i.id];
   }
+
+  // One results card per company per quarter (a results PDF and a later press
+  // release can both carry the numbers): keep the filing-sourced one, fold the other in.
+  const keep = new Map<string, FeedItem>();
+  const drop = new Set<string>();
+  for (const it of items) {
+    if (!it.results) continue;
+    const k = `${it.symbol}:${it.results.current.label}`;
+    const prev = keep.get(k);
+    if (!prev) {
+      keep.set(k, it);
+      continue;
+    }
+    const [better, worse] = it.results.source === "filing" && prev.results!.source !== "filing" ? [it, prev] : [prev, it];
+    (better.related ||= []).push({ id: worse.id, headline: worse.headline, url: worse.url }, ...(worse.related || []));
+    keep.set(k, better);
+    drop.add(worse.id);
+  }
+  items = items.filter((it) => !drop.has(it.id));
 
   // 6. Write
   items.sort((a, b) => b.time.localeCompare(a.time));
