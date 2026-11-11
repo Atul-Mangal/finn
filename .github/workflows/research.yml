@@ -34,11 +34,18 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: npm run prefetch -- ${{ github.event.inputs.symbols }}
       - name: Commit
+        # Re-apply this job's outputs on top of the latest main (no merge conflicts).
         run: |
           git config user.name "finn-bot"
           git config user.email "finn-bot@users.noreply.github.com"
-          git add public/data/research data/cache.json
-          if git diff --cached --quiet; then echo "no changes"; exit 0; fi
-          git commit -m "data: research snapshots $(date -u +%Y-%m-%d)"
-          git pull --rebase --autostash
-          git push
+          mkdir -p /tmp/out && cp -r public/data/research /tmp/out/ && cp data/research-cache.json data/models.json /tmp/out/
+          for i in 1 2 3; do
+            git fetch -q origin main && git reset -q --hard origin/main
+            mkdir -p public/data/research && cp -r /tmp/out/research/. public/data/research/ && cp /tmp/out/research-cache.json /tmp/out/models.json data/
+            git add public/data/research data/research-cache.json data/models.json
+            if git diff --cached --quiet; then echo "no changes"; exit 0; fi
+            git commit -qm "data: research snapshots $(date -u +%Y-%m-%d)"
+            git push -q && exit 0
+            sleep 5
+          done
+          exit 1

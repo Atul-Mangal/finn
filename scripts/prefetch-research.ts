@@ -8,8 +8,10 @@ import { RESEARCH_DEMO } from "../src/config/portfolio";
 import { setCacheStore } from "../src/lib/cache";
 import { runResearch } from "../src/lib/pull/run";
 import { fileCache } from "./lib/file-cache";
+import { saveWorkingModels } from "./lib/models-file";
 
-const store = fileCache(path.join(process.cwd(), "data", "cache.json"));
+// Separate cache file from the hourly pipeline so the two jobs never conflict.
+const store = fileCache(path.join(process.cwd(), "data", "research-cache.json"));
 setCacheStore(store);
 const OUT = path.join(process.cwd(), "public", "data", "research");
 
@@ -34,5 +36,6 @@ async function main() {
   try { prev = JSON.parse(fs.readFileSync(idxFile, "utf8")); } catch {}
   const merged = [...index, ...prev.filter((p) => p.symbol !== "SAMPLECO" && !index.some((i) => i.symbol === p.symbol))];
   fs.writeFileSync(idxFile, JSON.stringify(merged, null, 1));
+  saveWorkingModels();
 }
 main();

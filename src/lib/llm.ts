@@ -15,6 +15,9 @@
 import { cache, hashKey } from "./cache";
 import { fetchWithRetry, sleep } from "./http";
 import type { UsageSummary } from "./types";
+// Last models that actually answered in time (written by the data jobs, shipped
+// with every deploy) — so nobody waits minutes on a model that's listed but hangs.
+import known from "../../data/models.json";
 
 export type ModelTier = "cheap" | "strong";
 
@@ -79,10 +82,16 @@ async function resolveGeminiModels(): Promise<void> {
   CANDIDATES.cheap = [...lite, ...ranked(/^gemini-(\d+(?:\.\d+)?)-flash-lite-preview/)];
   // strong: Flash versions, newest first; Flash-Lite as a last resort
   CANDIDATES.strong = [...flash, ...ranked(/^gemini-(\d+(?:\.\d+)?)-flash-preview/), ...lite.slice(0, 1)];
+  const preferFirst = (list: string[], m?: string) => (m && list.includes(m) ? [m, ...list.filter((x) => x !== m)] : list);
+  CANDIDATES.cheap = preferFirst(CANDIDATES.cheap, known.cheap);
+  CANDIDATES.strong = preferFirst(CANDIDATES.strong, known.strong);
   if (CANDIDATES.cheap[0] && !process.env.CHEAP_MODEL) MODELS.cheap = CANDIDATES.cheap[0];
   if (CANDIDATES.strong[0] && !process.env.STRONG_MODEL) MODELS.strong = CANDIDATES.strong[0];
   console.log(`[llm] using cheap=${MODELS.cheap} strong=${MODELS.strong}`);
 }
+/** Models that have answered successfully in this process (for data/models.json). */
+export const WORKED: Partial<Record<ModelTier, string>> = {};
+
 export function ensureModels(): Promise<void> {
   if (PROVIDER !== "gemini" || !process.env.GEMINI_API_KEY) return Promise.resolve();
   resolved ||= resolveGeminiModels().catch(() => {});
@@ -146,6 +155,7 @@ export async function llm(tier: ModelTier, opts: CallOpts, usage: UsageSummary):
     const t0 = Date.now();
     try {
       out = PROVIDER === "gemini" ? await callGemini(m, tier, opts) : await callOpenAI(m, opts);
+      WORKED[tier] = m;
       if (!process.env.VERCEL)
         console.log(`[llm] ${tier} ${m}: ${((Date.now() - t0) / 1000).toFixed(1)}s, ${out.inTok} in / ${out.outTok} out`);
       if (m !== MODELS[tier]) {

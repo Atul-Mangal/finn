@@ -26,6 +26,7 @@ import { enrichPerson, extractPeople } from "../src/lib/push/people";
 import { batchHeadlineSummaries, filingSummary } from "../src/lib/push/summarize";
 import type { Category, Feed, FeedItem, Prices } from "../src/lib/types";
 import { fileCache } from "./lib/file-cache";
+import { saveWorkingModels } from "./lib/models-file";
 
 const WINDOW_DAYS = Number(process.env.WINDOW_DAYS || 30);
 // Free-tier friendly: space model calls out. The cron job isn't in a hurry.
@@ -201,6 +202,7 @@ async function main() {
     log("no filings fetched — keeping previous feed.json");
   }
   store.save();
+  saveWorkingModels();
   log(`done: ${items.length} items (${items.filter((i) => i.tier === "top").length} top), ` +
     `${usage.cheapCalls} cheap + ${usage.strongCalls} strong calls, ${usage.cacheHits} cache hits, ~$${usage.estCostUSD}`);
   if (errors.length) log("errors:\n  " + errors.join("\n  "));

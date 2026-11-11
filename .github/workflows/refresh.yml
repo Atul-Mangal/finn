@@ -40,11 +40,19 @@ jobs:
           WINDOW_DAYS: ${{ github.event.inputs.window_days || '30' }}
         run: npm run pipeline
       - name: Commit data
+        # Re-apply this job's outputs on top of the latest main, so a concurrent
+        # job's commit can never cause a merge conflict.
         run: |
           git config user.name "finn-bot"
           git config user.email "finn-bot@users.noreply.github.com"
-          git add public/data data/cache.json
-          if git diff --cached --quiet; then echo "no changes"; exit 0; fi
-          git commit -m "data: refresh $(date -u +%Y-%m-%dT%H:%MZ)"
-          git pull --rebase --autostash
-          git push
+          mkdir -p /tmp/out && cp public/data/feed.json public/data/prices.json data/cache.json data/models.json /tmp/out/
+          for i in 1 2 3; do
+            git fetch -q origin main && git reset -q --hard origin/main
+            cp /tmp/out/feed.json /tmp/out/prices.json public/data/ && cp /tmp/out/cache.json /tmp/out/models.json data/
+            git add public/data/feed.json public/data/prices.json data/cache.json data/models.json
+            if git diff --cached --quiet; then echo "no changes"; exit 0; fi
+            git commit -qm "data: refresh $(date -u +%Y-%m-%dT%H:%MZ)"
+            git push -q && exit 0
+            sleep 5
+          done
+          exit 1
