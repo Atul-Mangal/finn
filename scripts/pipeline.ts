@@ -26,6 +26,7 @@ import { enrichPerson, extractPeople } from "../src/lib/push/people";
 import { batchHeadlineSummaries, filingSummary } from "../src/lib/push/summarize";
 import type { Category, Feed, FeedItem, Prices } from "../src/lib/types";
 import { fileCache } from "./lib/file-cache";
+import { eventDate, eventWhat } from "../src/lib/push/events";
 import { saveWorkingModels } from "./lib/models-file";
 
 const WINDOW_DAYS = Number(process.env.WINDOW_DAYS || 30);
@@ -117,6 +118,15 @@ async function main() {
       tier: tierOf(p),
     };
   });
+  // Dated upcoming events from notices (board meetings, earnings calls, AGMs)
+  for (const it of items) {
+    const a = raw.find((r) => String(r.a.NEWSID) === it.id)?.a;
+    if (!a) continue;
+    const text = `${a.NEWSSUB || ""} ${a.HEADLINE || ""}`;
+    const what = eventWhat(text);
+    const date = what ? eventDate(text) : null;
+    if (what && date) it.event = { date, what };
+  }
   items = cluster(items);
   const byId = new Map(raw.map((r) => [String(r.a.NEWSID), r.a]));
 

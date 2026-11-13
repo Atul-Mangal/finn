@@ -7,6 +7,7 @@ import { CATEGORY_LABEL, ago, signedPct, toneOf } from "@/lib/format";
 import { Row, TopCard } from "@/components/FeedItems";
 import { SampleBanner } from "@/components/SampleBanner";
 import { Pulse } from "@/components/Pulse";
+import { Upcoming } from "@/components/Upcoming";
 import type { Category, FeedItem } from "@/lib/types";
 
 const WINDOWS = [
@@ -177,6 +178,10 @@ export default function Brief() {
           No filings {winLabel}.{" "}
           {win !== "30d" && <button className="text-link" onClick={() => setWin(win === "24h" ? "3d" : win === "3d" ? "7d" : "30d")}>Look further back</button>}
         </div>
+      )}
+
+      {now > 0 && (
+        <Upcoming items={feed.data.items} muted={settings.muted} today={new Date(now + 5.5 * 3600e3).toISOString().slice(0, 10)} />
       )}
 
       {/* Worth a glance */}

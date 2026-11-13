@@ -4,12 +4,27 @@ import { useRef, useState } from "react";
 import type { FeedItem, PersonCard, PriceSeries, ResultsCard } from "@/lib/types";
 import { CATEGORY_LABEL, ago, pctChange, signedPct, toneOf } from "@/lib/format";
 
-function DayMove({ series }: { series?: PriceSeries }) {
+/** The first session that could react to a filing: same day if filed before
+ *  the 15:30 IST close, otherwise the next trading day. */
+export function reactionIndex(series: PriceSeries, filedIso: string): number {
+  const t = new Date(filedIso);
+  const ist = new Date(t.getTime() + 5.5 * 3600e3);
+  const day = ist.toISOString().slice(0, 10);
+  const afterClose = ist.getUTCHours() * 60 + ist.getUTCMinutes() >= 15 * 60 + 30;
+  return series.d.findIndex((d) => (afterClose ? d > day : d >= day));
+}
+
+function DayMove({ series, filed }: { series?: PriceSeries; filed?: string }) {
   if (!series || series.c.length < 22) return null;
   const n = series.c.length;
-  const ret = ((series.c[n - 1] - series.c[n - 2]) / series.c[n - 2]) * 100;
-  const avg = series.v.slice(n - 21, n - 1).reduce((a, b) => a + b, 0) / 20;
-  const volX = series.v[n - 1] / avg;
+  // Show how the market took the filing; fall back to the last close if it hasn't traded yet.
+  const ri = filed ? reactionIndex(series, filed) : -1;
+  const i = ri >= 1 ? ri : n - 1;
+  const reacted = ri >= 1;
+  const ret = ((series.c[i] - series.c[i - 1]) / series.c[i - 1]) * 100;
+  const base = series.v.slice(Math.max(0, i - 20), i);
+  const avg = base.reduce((a, b) => a + b, 0) / (base.length || 1);
+  const volX = series.v[i] / avg;
   const last30 = series.c.slice(-30);
   const month = ((last30[last30.length - 1] - last30[0]) / last30[0]) * 100;
   const lo = Math.min(...last30),
@@ -21,7 +36,8 @@ function DayMove({ series }: { series?: PriceSeries }) {
         <polyline points={pts} fill="none" strokeWidth="1.6" vectorEffect="non-scaling-stroke" className={month >= 0 ? "stroke-up" : "stroke-down"} />
       </svg>
       <span>
-        Last close <span className={toneOf(ret)}>{signedPct(ret)}</span>
+        {reacted ? `Market reaction${i === n - 1 ? "" : `, ${new Date(series.d[i] + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`} ` : "Last close "}
+        <span className={toneOf(ret)}>{signedPct(ret)}</span>
         {volX >= 1.5 && <>, vol {volX.toFixed(1)}×</>}
       </span>
     </span>
@@ -216,7 +232,7 @@ function CardBody({ item, series, isNew, done, onDone, animate }: {
       )}
 
       <footer className="mt-3 flex items-center justify-between gap-2">
-        <DayMove series={series} />
+        <DayMove series={series} filed={item.time} />
         <div className="flex shrink-0 gap-1 text-[13px]">
           {item.url && (
             <a href={item.url} target="_blank" rel="noreferrer" className="rounded-md px-2 py-1 text-link hover:bg-stone">Filing</a>

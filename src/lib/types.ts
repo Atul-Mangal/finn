@@ -77,6 +77,7 @@ export interface FeedItem {
   results?: ResultsCard;
   people?: PersonCard[];
   related?: { id: string; headline: string; url?: string }[]; // collapsed duplicates
+  event?: { date: string; what: string }; // a dated upcoming event announced by this filing
 }
 
 export interface UsageSummary {

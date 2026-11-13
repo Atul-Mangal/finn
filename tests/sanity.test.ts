@@ -6,6 +6,7 @@ import { buildCard, reconcile, quarterEnd, fiscalLabel } from "../src/lib/push/r
 import * as cheerio from "cheerio";
 import { num } from "../src/lib/pull/screener";
 import { cagr } from "../src/lib/pull/metrics";
+import { eventDate, eventWhat } from "../src/lib/push/events";
 
 test("rules classify common BSE subjects", () => {
   const cases: [string, string][] = [
@@ -83,4 +84,13 @@ test("results labels and unit reconciliation", () => {
 test("subsidiary housekeeping ranks below real M&A", () => {
   assert.ok(scorePriority("M&A", "Incorporation of a wholly owned subsidiary in Canada") < 60);
   assert.ok(scorePriority("M&A", "Acquisition of 76% stake in XYZ Ltd") >= 60);
+});
+
+test("event dates from board-meeting notices", () => {
+  const a = "Titan Company Ltd has informed BSE that a meeting of the Board of Directors of the Company is scheduled on 14/11/2026, inter alia, to consider and approve the Unaudited Financial Results";
+  assert.equal(eventDate(a), "2026-11-14");
+  assert.equal(eventWhat(a), "Board meeting on results");
+  assert.equal(eventDate("The earnings call will be held on November 18, 2026 at 4 PM"), "2026-11-18");
+  assert.equal(eventDate("Board meeting to be held on 20th November, 2026"), "2026-11-20");
+  assert.equal(eventDate("Outcome of board meeting"), null);
 });
