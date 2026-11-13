@@ -29,6 +29,7 @@ export function Pulse({ prices, flagged, muted, sinceMs, sessions }: {
   const date = rows.map((r) => r.date).sort().at(-1)!;
   const from = rows.map((r) => r.from).sort()[0];
   const up = rows.filter((r) => r.ret > 0).length;
+  const avg = rows.reduce((a, r) => a + r.ret, 0) / rows.length; // equal-weighted
   const scale = Math.max(4, ...rows.map((r) => Math.abs(r.ret))) / 1.5; // longer windows, bigger moves
   return (
     <section className="mt-6" aria-label="Portfolio pulse">
@@ -37,7 +38,7 @@ export function Pulse({ prices, flagged, muted, sinceMs, sessions }: {
           {from === date ? <>Last session, {dayLabel(date)}</> : <>{dayLabel(from)} to {dayLabel(date)}</>}
         </h2>
         <p className="text-[12px] text-graphite">
-          {up} up, {rows.length - up} down
+          {up} up, {rows.length - up} down, avg <span className={avg >= 0 ? "text-up" : "text-down"}>{signedPct(avg)}</span>
         </p>
       </div>
       <ul className="mt-2 grid grid-cols-4 gap-1">
