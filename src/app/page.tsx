@@ -6,6 +6,7 @@ import { filingTrips, personalPriority, priceTrips } from "@/lib/alerts";
 import { CATEGORY_LABEL, ago, signedPct, toneOf } from "@/lib/format";
 import { Row, TopCard } from "@/components/FeedItems";
 import { SampleBanner } from "@/components/SampleBanner";
+import { Pulse } from "@/components/Pulse";
 import type { Category, FeedItem } from "@/lib/types";
 
 const WINDOWS = [
@@ -106,6 +107,10 @@ export default function Brief() {
           {view.normal.length} worth a glance, {view.routine.length} routine folded away.
         </span>
       </p>
+
+      {prices.data && (
+        <Pulse prices={prices.data} muted={settings.muted} flagged={new Set([...view.open, ...view.earlier].map((i) => i.symbol))} />
+      )}
 
       {/* Tripwires that fired */}
       {(trips.length > 0 || filingAlerts.length > 0) && (

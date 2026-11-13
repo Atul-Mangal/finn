@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useRef, useState } from "react";
 import type { FeedItem, PersonCard, PriceSeries, ResultsCard } from "@/lib/types";
 import { CATEGORY_LABEL, ago, pctChange, signedPct, toneOf } from "@/lib/format";
 
@@ -9,11 +10,81 @@ function DayMove({ series }: { series?: PriceSeries }) {
   const ret = ((series.c[n - 1] - series.c[n - 2]) / series.c[n - 2]) * 100;
   const avg = series.v.slice(n - 21, n - 1).reduce((a, b) => a + b, 0) / 20;
   const volX = series.v[n - 1] / avg;
+  const last30 = series.c.slice(-30);
+  const month = ((last30[last30.length - 1] - last30[0]) / last30[0]) * 100;
+  const lo = Math.min(...last30),
+    hi = Math.max(...last30);
+  const pts = last30.map((v, i) => `${(i / (last30.length - 1)) * 100},${22 - ((v - lo) / (hi - lo || 1)) * 20 - 1}`).join(" ");
   return (
-    <span className="num text-[12px] text-graphite">
-      Last close <span className={toneOf(ret)}>{signedPct(ret)}</span>
-      {volX >= 1.5 && <>, volume {volX.toFixed(1)}× avg</>}
+    <span className="num flex items-center gap-2 text-[12px] text-graphite">
+      <svg viewBox="0 0 100 22" preserveAspectRatio="none" className="h-5 w-14 shrink-0" role="img" aria-label={`30-day price ${signedPct(month)}`}>
+        <polyline points={pts} fill="none" strokeWidth="1.6" vectorEffect="non-scaling-stroke" className={month >= 0 ? "stroke-up" : "stroke-down"} />
+      </svg>
+      <span>
+        Last close <span className={toneOf(ret)}>{signedPct(ret)}</span>
+        {volX >= 1.5 && <>, vol {volX.toFixed(1)}×</>}
+      </span>
     </span>
+  );
+}
+
+/** Swipe right to mark done (the button stays for everyone else). */
+export function Swipe({ enabled, onDone, children }: { enabled: boolean; onDone: () => void; children: React.ReactNode }) {
+  const start = useRef<{ x: number; y: number; id: number } | null>(null);
+  const [dx, setDx] = useState(0);
+  const [drag, setDrag] = useState(false);
+  const [gone, setGone] = useState(false);
+  if (!enabled) return <>{children}</>;
+  const end = () => {
+    if (!start.current) return;
+    start.current = null;
+    setDrag(false);
+    if (dx > 96) {
+      setGone(true);
+      setDx(520);
+      setTimeout(onDone, 200);
+    } else setDx(0);
+  };
+  return (
+    <div className="swipe-track relative overflow-hidden rounded-xl">
+      <div aria-hidden className="absolute inset-0 flex items-center rounded-xl bg-up/15 pl-5 text-[14px] font-semibold text-up" style={{ opacity: Math.min(dx / 96, 1) }}>
+        ✓ Done
+      </div>
+      <div
+        className={`swipe-card relative ${drag ? "dragging" : ""}`}
+        style={{ transform: `translateX(${dx}px)`, opacity: gone ? 0 : 1 }}
+        onPointerDown={(e) => {
+          if (e.pointerType === "mouse") return;
+          start.current = { x: e.clientX, y: e.clientY, id: e.pointerId };
+        }}
+        onPointerMove={(e) => {
+          const s0 = start.current;
+          if (!s0) return;
+          const mx = e.clientX - s0.x,
+            my = e.clientY - s0.y;
+          if (!drag) {
+            if (Math.abs(my) > 10 && Math.abs(my) > Math.abs(mx)) {
+              start.current = null; // it's a scroll
+              return;
+            }
+            if (mx > 12) {
+              setDrag(true);
+              (e.currentTarget as HTMLElement).setPointerCapture(s0.id);
+            }
+            return;
+          }
+          setDx(Math.max(0, mx));
+        }}
+        onPointerUp={end}
+        onPointerCancel={() => {
+          start.current = null;
+          setDrag(false);
+          setDx(0);
+        }}
+      >
+        {children}
+      </div>
+    </div>
   );
 }
 
@@ -109,7 +180,17 @@ function PeopleBlock({ people }: { people: PersonCard[] }) {
   );
 }
 
-export function TopCard({ item, series, isNew, done, onDone, animate }: {
+export function TopCard(props: {
+  item: FeedItem; series?: PriceSeries; isNew: boolean; done: boolean; onDone: () => void; animate?: boolean;
+}) {
+  return (
+    <Swipe enabled={!props.done} onDone={props.onDone}>
+      <CardBody {...props} />
+    </Swipe>
+  );
+}
+
+function CardBody({ item, series, isNew, done, onDone, animate }: {
   item: FeedItem; series?: PriceSeries; isNew: boolean; done: boolean; onDone: () => void; animate?: boolean;
 }) {
   return (
@@ -126,7 +207,7 @@ export function TopCard({ item, series, isNew, done, onDone, animate }: {
       </header>
       <p className="mt-1 text-[14px] leading-snug text-graphite">{item.headline}</p>
 
-      {item.results && <ResultsBlock r={item.results} animate={animate} />}
+      {item.results && (item.results.current.revenue != null || item.results.current.pat != null) && <ResultsBlock r={item.results} animate={animate} />}
       {item.people?.length ? <PeopleBlock people={item.people} /> : null}
       {item.summary && !item.results && (
         <p className="mt-2.5 text-[15px] leading-snug">

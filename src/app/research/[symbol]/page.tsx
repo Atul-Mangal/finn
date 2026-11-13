@@ -285,6 +285,7 @@ function Promises({ a }: { a: Analysis }) {
   return (
     <div>
       <p className="font-serif text-[22px] leading-[1.2]"><span className="mark mark-draw">{scoreLine(a.promises)}</span></p>
+      <VerdictBar promises={a.promises} />
       <ol className="mt-4 space-y-4">
         {a.promises.map((p, i) => (
           <li key={i} className="rounded-xl bg-paper px-4 py-3">
@@ -298,6 +299,36 @@ function Promises({ a }: { a: Analysis }) {
           </li>
         ))}
       </ol>
+    </div>
+  );
+}
+
+/** One segment per promise, in verdict order: the ledger at a glance. */
+function VerdictBar({ promises }: { promises: Verdict[] }) {
+  const order: Verdict["verdict"][] = ["delivered", "partial", "missed", "pending", "unverifiable"];
+  const fill: Record<Verdict["verdict"], string> = {
+    delivered: "bg-up",
+    partial: "bg-marker",
+    missed: "bg-down",
+    pending: "bg-rule",
+    unverifiable: "bg-rule",
+  };
+  const sorted = [...promises].sort((a, b) => order.indexOf(a.verdict) - order.indexOf(b.verdict));
+  if (!sorted.length) return null;
+  return (
+    <div className="mt-3">
+      <div className="flex h-2 gap-0.5 overflow-hidden rounded-full" role="img"
+        aria-label={order.map((v) => `${sorted.filter((p) => p.verdict === v).length} ${VERDICT[v].label}`).join(", ")}>
+        {sorted.map((p, i) => <span key={i} className={`flex-1 ${fill[p.verdict]}`} />)}
+      </div>
+      <p className="mt-1.5 flex flex-wrap gap-x-3 text-[12px] text-graphite">
+        {order.filter((v) => sorted.some((p) => p.verdict === v)).map((v) => (
+          <span key={v} className="inline-flex items-center gap-1">
+            <span aria-hidden className={`inline-block size-2 rounded-full ${fill[v]}`} />
+            {sorted.filter((p) => p.verdict === v).length} {VERDICT[v].label.toLowerCase()}
+          </span>
+        ))}
+      </p>
     </div>
   );
 }

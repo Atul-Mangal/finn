@@ -124,7 +124,7 @@ async function main() {
   if (llmAvailable()) {
     const top = items.filter((i) => i.tier === "top");
     await mapLimit(top, 2, async (it) => {
-      const key = `enrich:v3:${it.id}`;
+      const key = `enrich:v4:${it.id}`;
       const cached = await cache.get<Partial<FeedItem>>(key);
       if (cached) {
         usage.cacheHits++;

@@ -122,7 +122,8 @@ export function buildCard(raw: RawResults): ResultsCard | null {
   };
 
   const cur = toPeriod(raw.columns.find((c) => c.role === "current") || raw.columns[0]);
-  if (!cur) return null;
+  // A table read with no revenue and no profit is a failed read, not a result.
+  if (!cur || (cur.revenue == null && cur.pat == null)) return null;
   const prev = toPeriod(raw.columns.find((c) => c.role === "prevQuarter"));
   const ya = toPeriod(raw.columns.find((c) => c.role === "yearAgo"));
 

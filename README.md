@@ -6,7 +6,9 @@ A mobile-first investing agent for Indian equities, built for the ENAM AI Engine
 - **Tripwires (push):** you set what "unusual" means (volume ×, price move %, filing types). The screen tells you live how many alerts a week that setting would have produced, so you can calibrate noise before it happens.
 - **Research (pull):** any NSE symbol. FINN reads the last five earnings-call transcripts and checks what management promised against what the filed numbers show. Then it gives trajectory, balance sheet, cash quality, current guidance and a bull/bear case. Primary sources only.
 
-**Try it on a phone:** `<your Vercel URL>` (add to home screen; it installs as an app).
+**Try it on a phone:** https://finn-92ls.vercel.app (add to home screen; it installs as an app).
+
+![FINN on a phone: Brief with portfolio pulse, Kaynes promise ledger, Tripwires calibration, HDFC Bank research in dark mode](docs/screens.png)
 
 ## How it works
 
