@@ -110,22 +110,21 @@ export async function scanAnnualReport(doc: DocLink, ctx: AnnualContext, usage: 
     {
       system: SYSTEM,
       prompt: `Annual report ${doc.period}. Pages selected: auditor's report, contingent liabilities, related-party note.
-Return JSON:
+Return JSON in exactly this shape (no comments):
 {
- "auditor": {
-   "opinion": "unmodified|qualified|adverse|disclaimer|not_found",   // unmodified = a clean 'true and fair view' opinion with no 'Basis for Qualified Opinion'
-   "emphasisOfMatter": "<=30 words on what the auditor draws attention to, or ''",
-   "keyAuditMatters": ["<=10 words each, max 3"]
- },
- "contingentLiabilities": {
-   "found": true|false,
-   "basis": "consolidated|standalone|unclear",   // which statement that page belongs to, from its header
-   "totalAmount": number|null,        // the printed total for the latest year; if no total is printed, the largest single item
-   "unit": "the unit printed on that page, e.g. 'Rs crore', 'Rs lakh', 'Rs million', or 'not stated'",
-   "largest": ["<item>: <amount as printed, with the unit>", max 3]
- },
- "relatedParty": {"notable": ["<=22 words each, max 3: the largest or most unusual transactions with promoter/KMP-linked entities, with amounts as printed including the unit (e.g. 'Rs 437.74 crore')"]}
+ "auditor": {"opinion": "unmodified|qualified|adverse|disclaimer|not_found", "emphasisOfMatter": "", "keyAuditMatters": [""]},
+ "contingentLiabilities": {"found": true, "basis": "consolidated|standalone|unclear", "totalAmount": 0, "unit": "", "largest": [""]},
+ "relatedParty": {"notable": [""]}
 }
+Rules:
+- opinion: "unmodified" means a clean 'true and fair view' opinion with no 'Basis for Qualified Opinion'.
+- emphasisOfMatter: <=30 words on what the auditor draws attention to, or "".
+- keyAuditMatters: <=10 words each, max 3.
+- contingentLiabilities.basis: which statement that page belongs to, from its header.
+- totalAmount: the printed total for the latest year as a number, or null; if no total is printed, the largest single item.
+- unit: the unit printed on that page, e.g. "Rs crore", "Rs lakh", "Rs million", or "not stated".
+- largest: max 3, each "<item>: <amount as printed, with the unit>".
+- relatedParty.notable: max 3, <=22 words each: the largest or most unusual transactions with promoter/KMP-linked entities, with amounts as printed including the unit.
 Prefer the CONSOLIDATED statements when both appear.
 
 ${body}`,

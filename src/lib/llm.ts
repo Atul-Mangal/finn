@@ -211,7 +211,13 @@ export function parseJsonLoose<T>(raw: string): T {
   s = s.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "");
   const first = Math.min(...["{", "["].map((c) => (s.indexOf(c) === -1 ? Infinity : s.indexOf(c))));
   if (first > 0 && first !== Infinity) s = s.slice(first);
-  return JSON.parse(s) as T;
+  try {
+    return JSON.parse(s) as T;
+  } catch {
+    // Models sometimes echo the template's // comments or leave a trailing comma.
+    const repaired = s.replace(/(^|[\s,{\[])\/\/[^\n]*$/gm, "$1").replace(/,\s*([}\]])/g, "$1");
+    return JSON.parse(repaired) as T;
+  }
 }
 
 async function callGemini(model: string, tier: ModelTier, o: CallOpts) {

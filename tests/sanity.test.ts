@@ -9,6 +9,7 @@ import { cagr } from "../src/lib/pull/metrics";
 import { eventDate, eventWhat } from "../src/lib/push/events";
 import { pickPages } from "../src/lib/pull/annual";
 import { briefScript, speakable } from "../src/lib/speak";
+import { parseJsonLoose } from "../src/lib/llm";
 
 test("rules classify common BSE subjects", () => {
   const cases: [string, string][] = [
@@ -149,4 +150,9 @@ test("spoken brief is built from the ranked data", () => {
   assert.equal(lines[1], "IRCTC reported results. Revenue up 16 percent, profit down 23 percent on last year.");
   assert.match(lines[2], /IRCTC traded 6.0 times its usual volume, up 2.6 percent/);
   assert.match(lines[3], /3 more are worth a glance, and 5 routine filings are folded away/);
+});
+
+test("tolerant JSON parsing keeps URLs intact", () => {
+  const raw = '```json\n{\n "a": 1, // the total\n "u": "https://x.in/a",\n "l": ["p", "q",],\n}\n```';
+  assert.deepEqual(parseJsonLoose(raw), { a: 1, u: "https://x.in/a", l: ["p", "q"] });
 });
