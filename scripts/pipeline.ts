@@ -134,7 +134,7 @@ async function main() {
   if (llmAvailable()) {
     const top = items.filter((i) => i.tier === "top");
     await mapLimit(top, 2, async (it) => {
-      const key = `enrich:v5:${it.id}`;
+      const key = `enrich:v6:${it.id}`;
       const cached = await cache.get<Partial<FeedItem>>(key);
       if (cached) {
         usage.cacheHits++;
@@ -211,13 +211,16 @@ async function main() {
   const drop = new Set<string>();
   for (const it of items) {
     if (!it.results) continue;
-    const k = `${it.symbol}:${it.results.current.label}`;
+    const k = it.symbol; // one results card per company in the window (a 30-day window holds one quarter)
     const prev = keep.get(k);
     if (!prev) {
       keep.set(k, it);
       continue;
     }
-    const [better, worse] = it.results.source === "filing" && prev.results!.source !== "filing" ? [it, prev] : [prev, it];
+    // prefer: a recognised quarter, then fewer warnings, then the filing over screener, then the newer filing
+    const score = (x: FeedItem) =>
+      (/^Q[1-4] FY\d\d$/.test(x.results!.current.label) ? 8 : 0) - Math.min(x.results!.warnings.length, 3) * 2 + (x.results!.source === "filing" ? 1 : 0);
+    const [better, worse] = score(it) > score(prev) || (score(it) === score(prev) && it.time > prev.time) ? [it, prev] : [prev, it];
     (better.related ||= []).push({ id: worse.id, headline: worse.headline, url: worse.url }, ...(worse.related || []));
     keep.set(k, better);
     drop.add(worse.id);

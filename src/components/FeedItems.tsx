@@ -159,6 +159,7 @@ export function ResultsBlock({ r, animate }: { r: ResultsCard; animate?: boolean
       <p className="mt-1.5 text-[11px] text-faint">
         vs {r.prevQuarter?.label || "prev. quarter"} and {r.yearAgo?.label || "year-ago quarter"}. {r.ebitdaNote}
         {r.source === "screener" && !r.warnings.length && " Figures from screener.in because the filing PDF couldn't be read."}
+        {r.note && ` ${r.note.charAt(0).toUpperCase() + r.note.slice(1)}.`}
       </p>
       {r.warnings.length > 0 && <p className="mt-1 text-[12px] text-down">{r.warnings.join("; ")}</p>}
     </div>

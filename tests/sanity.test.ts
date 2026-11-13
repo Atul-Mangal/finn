@@ -74,6 +74,8 @@ test("results labels and unit reconciliation", () => {
   assert.equal(fixed.current.revenue, 53344.1);
   assert.equal(fixed.current.pat, 2466.1);
   assert.ok(fixed.warnings.some((w) => /Unit corrected/.test(w)));
+  // the missing previous quarter is filled from screener AFTER the rescale (not divided by 10)
+  assert.equal(fixed.prevQuarter?.revenue, 50000);
   // a 50% disagreement that isn't a unit slip -> screener's figures, with a note
   const off = reconcile({ ...card, current: { ...card.current, revenue: 80000 } }, { headers: ["Jun 2026", "Sep 2026"], rows: { revenue: [50000, 53344], pat: [2000, 2466] } });
   assert.equal(off.source, "screener");
@@ -93,4 +95,20 @@ test("event dates from board-meeting notices", () => {
   assert.equal(eventDate("The earnings call will be held on November 18, 2026 at 4 PM"), "2026-11-18");
   assert.equal(eventDate("Board meeting to be held on 20th November, 2026"), "2026-11-20");
   assert.equal(eventDate("Outcome of board meeting"), null);
+});
+
+test("odd period labels and column-order fallback", () => {
+  assert.equal(fiscalLabel(quarterEnd("2Q of FY2026")!), "Q2 FY26");
+  const card = buildCard({
+    found: true, basis: "consolidated", unitAsPrinted: "Rs crore", isLender: false,
+    columns: [
+      { label: "30.09.2026", role: "current", revenueFromOperations: 100, otherIncome: 0, financeCosts: 0, depreciation: 0, profitBeforeExceptionalAndTax: 20, profitBeforeTax: 20, profitAfterTax: 15 },
+      { label: "31.03.2026", role: "prevQuarter", revenueFromOperations: 90, otherIncome: 0, financeCosts: 0, depreciation: 0, profitBeforeExceptionalAndTax: 18, profitBeforeTax: 18, profitAfterTax: 13 },
+    ],
+  })!;
+  const q = { headers: ["Sep 2025", "Dec 2025", "Mar 2026", "Jun 2026", "Sep 2026"], rows: { revenue: [80, 85, 90, 95, 100], pat: [10, 11, 12, 14, 15] } };
+  const fixed = reconcile(card, q);
+  assert.equal(fixed.source, "screener");
+  assert.equal(fixed.prevQuarter?.label, "Q1 FY27");
+  assert.ok(fixed.warnings.some((w) => /out of order/.test(w)));
 });

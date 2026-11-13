@@ -50,6 +50,7 @@ export interface ResultsCard {
   ebitdaNote?: string;
   warnings: string[]; // sanity-check failures, shown to the user
   source?: "filing" | "screener"; // screener = filing PDF was a scanned image
+  note?: string; // e.g. "previous quarter from screener.in"
 }
 
 export interface PersonCard {

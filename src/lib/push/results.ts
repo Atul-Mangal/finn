@@ -82,7 +82,7 @@ export function quarterEnd(label: string): { y: number; m: number } | null {
     const y = +m[2] < 100 ? 2000 + +m[2] : +m[2];
     return { y, m: MONTHS[m[1]] };
   }
-  m = t.match(/q([1-4])\s*fy\s*'?(\d{2,4})/);
+  m = t.match(/q([1-4])\s*(?:of\s*)?fy\s*'?(\d{2,4})/) || t.match(/([1-4])q\s*(?:of\s*)?fy\s*'?(\d{2,4})/);
   if (m) {
     const fy = +m[2] < 100 ? 2000 + +m[2] : +m[2];
     const q = +m[1];
@@ -194,6 +194,26 @@ export function pctChange(a: number | null | undefined, b: number | null | undef
   return ((a - b) / Math.abs(b)) * 100;
 }
 
+
+/** Fill a missing previous-quarter / year-ago column from screener's table (labelled). */
+function fillGaps(card: ResultsCard, q: Table, idx: number): ResultsCard {
+  if (card.source !== "filing") return card;
+  const fromScreener = cardFromScreener(q, card.isLender, card.basis, idx);
+  if (!fromScreener) return card;
+  const filled: string[] = [];
+  if (!card.prevQuarter && fromScreener.prevQuarter) {
+    card = { ...card, prevQuarter: fromScreener.prevQuarter };
+    filled.push("previous quarter");
+  }
+  if (!card.yearAgo && fromScreener.yearAgo) {
+    card = { ...card, yearAgo: fromScreener.yearAgo };
+    filled.push("year-ago quarter");
+  }
+  return filled.length
+    ? { ...card, warnings: card.warnings.filter((w) => !/column not found/.test(w)), note: `${filled.join(" and ")} from screener.in` }
+    : card;
+}
+
 /**
  * Cross-check a filing-extracted card against screener.in's quarterly table.
  * - A ~10x/100x/1000x gap means the unit was misread (e.g. ₹ million read as
@@ -211,24 +231,42 @@ export function reconcile(card: ResultsCard, q: Table): ResultsCard {
     const d = quarterEnd(h);
     return d && target && d.y === target.y && d.m === target.m;
   });
-  if (idx < 0) return card; // screener hasn't caught up with this quarter yet
+  if (idx < 0) {
+    // Either screener hasn't caught up with a brand-new quarter (fine), or the
+    // period couldn't be read at all — say so rather than show it unchecked.
+    const latest = quarterEnd(q.headers[q.headers.length - 1] || "");
+    const newer = target && latest && (target.y > latest.y || (target.y === latest.y && target.m > latest.m));
+    return newer ? card : { ...card, warnings: [...card.warnings, "Period couldn't be matched to a quarter — verify against the filing"] };
+  }
+  // Columns in the wrong order (the date check failed): the QoQ/YoY would be wrong.
+  if (card.warnings.some((w) => /not 3 months earlier|not 12 months earlier/.test(w))) {
+    const alt = cardFromScreener(q, card.isLender, card.basis, idx);
+    if (alt) {
+      alt.warnings.push("The filing's columns were read out of order — showing screener.in's figures");
+      return alt;
+    }
+  }
   const key = card.isLender ? "pat" : "revenue";
   const ref = q.rows[key]?.[idx] ?? null;
   const got = card.current[key];
-  if (ref == null || got == null || ref <= 0 || got <= 0) return card;
+  if (ref == null || got == null || ref <= 0 || got <= 0) return fillGaps(card, q, idx);
   const ratio = got / ref;
   const near = (x: number, k: number) => Math.abs(x / k - 1) < 0.2;
   for (const k of [10, 100, 1000, 0.1, 0.01]) {
     if (near(ratio, k)) {
       const fix = (p: ResultsPeriod | null): ResultsPeriod | null =>
         p && { ...p, revenue: r1(p.revenue == null ? null : p.revenue / k), ebitda: r1(p.ebitda == null ? null : p.ebitda / k), pbt: r1(p.pbt == null ? null : p.pbt / k), pat: r1(p.pat == null ? null : p.pat / k) };
-      return {
-        ...card,
-        current: fix(card.current)!,
-        prevQuarter: fix(card.prevQuarter),
-        yearAgo: fix(card.yearAgo),
-        warnings: [...card.warnings, `Unit corrected (filing figures were ${k}× screener.in's) — verify against filing`],
-      };
+      return fillGaps(
+        {
+          ...card,
+          current: fix(card.current)!,
+          prevQuarter: fix(card.prevQuarter),
+          yearAgo: fix(card.yearAgo),
+          warnings: [...card.warnings, `Unit corrected (filing figures were ${k}× screener.in's) — verify against filing`],
+        },
+        q,
+        idx,
+      );
     }
   }
   if (Math.abs(ratio - 1) > 0.25) {
@@ -238,5 +276,5 @@ export function reconcile(card: ResultsCard, q: Table): ResultsCard {
       return alt;
     }
   }
-  return card;
+  return fillGaps(card, q, idx);
 }
