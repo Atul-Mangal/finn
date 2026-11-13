@@ -224,7 +224,7 @@ export interface AnnualScan {
   pages: number; // pages in the report
   pagesRead: number; // pages actually sent to the model
   auditor: { opinion: "unmodified" | "qualified" | "adverse" | "disclaimer" | "not_found"; emphasis: string; keyMatters: string[] };
-  contingent: { printed: string; amountCr: number | null; pctNetWorth: number | null; largest: string[] } | null;
+  contingent: { basis: "consolidated" | "standalone" | "unclear"; printed: string; amountCr: number | null; pctNetWorth: number | null; largest: string[] } | null;
   relatedParty: string[];
   flags: Flag[];
   error?: string;

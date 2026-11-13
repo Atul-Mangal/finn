@@ -8,6 +8,7 @@ import { num } from "../src/lib/pull/screener";
 import { cagr } from "../src/lib/pull/metrics";
 import { eventDate, eventWhat } from "../src/lib/push/events";
 import { pickPages } from "../src/lib/pull/annual";
+import { briefScript, speakable } from "../src/lib/speak";
 
 test("rules classify common BSE subjects", () => {
   const cases: [string, string][] = [
@@ -128,4 +129,24 @@ test("annual report: picks the opinion page and the notes with numbers", () => {
   assert.deepEqual(p.auditor, [2]);
   assert.deepEqual(p.contingent, [4]);
   assert.deepEqual(p.related, [5]);
+  // the consolidated note wins over the standalone one
+  const both = [
+    "Notes to the Standalone Financial Statements. Contingent liabilities: claims not acknowledged as debts; corporate guarantee to subsidiary" + nums,
+    "Notes to the Consolidated Financial Statements. Contingent liabilities: claims not acknowledged as debts" + nums,
+  ];
+  assert.equal(pickPages(both).contingent[0], 0); // both are kept (top 2), in page order…
+  assert.deepEqual(pickPages([both[0], both[1], both[1], both[1]]).contingent, [1, 2]); // …but consolidated pages outrank standalone
+});
+
+test("spoken brief is built from the ranked data", () => {
+  assert.equal(speakable("Order worth ₹1,150 Cr; margin −467 bps YoY, PAT +7%"), "Order worth 1,150 crore rupees; margin minus 467 basis points year on year, PAT +7 percent");
+  const item = {
+    id: "1", symbol: "IRCTC", company: "IRCTC Ltd", time: "2026-11-12T17:45:00+05:30", category: "results", categorySource: "rule", headline: "Results", priority: 92, tier: "top",
+    results: { basis: "consolidated", unit: "₹ Cr", isLender: false, warnings: [], current: { label: "Q2 FY27", revenue: 1333, ebitda: 408, pbt: 356, pat: 264 }, prevQuarter: null, yearAgo: { label: "Q2 FY26", revenue: 1146, ebitda: 404, pbt: 457, pat: 342 } },
+  } as never;
+  const lines = briefScript({ windowLabel: "in the last 24 hours", open: [item], glance: 3, routine: 5, trips: [{ kind: "volume", symbol: "IRCTC", date: "2026-11-12", close: 700, ret: 2.6, volX: 6 }], names: { IRCTC: "IRCTC Ltd" } });
+  assert.equal(lines[0], "1 filing needs you in the last 24 hours.");
+  assert.equal(lines[1], "IRCTC reported results. Revenue up 16 percent, profit down 23 percent on last year.");
+  assert.match(lines[2], /IRCTC traded 6.0 times its usual volume, up 2.6 percent/);
+  assert.match(lines[3], /3 more are worth a glance, and 5 routine filings are folded away/);
 });

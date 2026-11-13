@@ -199,6 +199,7 @@ function PeopleBlock({ people }: { people: PersonCard[] }) {
 
 export function TopCard(props: {
   item: FeedItem; series?: PriceSeries; isNew: boolean; done: boolean; onDone: () => void; animate?: boolean;
+  record?: string; // management's promise record, when a research report exists
 }) {
   return (
     <Swipe enabled={!props.done} onDone={props.onDone}>
@@ -207,8 +208,8 @@ export function TopCard(props: {
   );
 }
 
-function CardBody({ item, series, isNew, done, onDone, animate }: {
-  item: FeedItem; series?: PriceSeries; isNew: boolean; done: boolean; onDone: () => void; animate?: boolean;
+function CardBody({ item, series, isNew, done, onDone, animate, record }: {
+  item: FeedItem; series?: PriceSeries; isNew: boolean; done: boolean; onDone: () => void; animate?: boolean; record?: string;
 }) {
   return (
     <article className={`rounded-xl bg-paper px-4 pb-3 pt-3.5 shadow-[0_1px_0_var(--color-rule)] ${done ? "opacity-55" : ""}`}>
@@ -225,6 +226,13 @@ function CardBody({ item, series, isNew, done, onDone, animate }: {
       <p className="mt-1 text-[14px] leading-snug text-graphite">{item.headline}</p>
 
       {item.results && (item.results.current.revenue != null || item.results.current.pat != null) && <ResultsBlock r={item.results} animate={animate} />}
+      {item.category === "results" && (
+        <p className="mt-2 text-[13px] leading-snug">
+          <Link href={`/research/${item.symbol}`} className="text-link">
+            {record ? <>Management&apos;s record: {record}</> : "Check what management had promised"}
+          </Link>
+        </p>
+      )}
       {item.people?.length ? <PeopleBlock people={item.people} /> : null}
       {item.summary && !item.results && (
         <p className="mt-2.5 text-[15px] leading-snug">

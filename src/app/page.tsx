@@ -1,13 +1,15 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { initialLastVisit, useFeed, useMarks, useNow, usePrices, useSettings } from "@/lib/client";
+import { initialLastVisit, useFeed, useJson, useMarks, useNow, usePrices, useSettings } from "@/lib/client";
 import { filingTrips, personalPriority, priceTrips } from "@/lib/alerts";
 import { CATEGORY_LABEL, ago, signedPct, toneOf } from "@/lib/format";
 import { Row, TopCard } from "@/components/FeedItems";
 import { SampleBanner } from "@/components/SampleBanner";
 import { Pulse } from "@/components/Pulse";
 import { Upcoming } from "@/components/Upcoming";
+import { Listen } from "@/components/Listen";
+import { briefScript } from "@/lib/speak";
 import type { Category, FeedItem } from "@/lib/types";
 
 const WINDOWS = [
@@ -63,12 +65,20 @@ export default function Brief() {
   const trips = useMemo(() => (prices.data ? priceTrips(prices.data, settings, 1) : []), [prices.data, settings]);
   const filingAlerts = useMemo(() => (feed.data ? filingTrips(feed.data, settings, sinceMs) : []), [feed.data, settings, sinceMs]);
 
+  // Management's promise record, for companies with a research report (push meets pull).
+  const researchIdx = useJson<{ symbol: string; scorecard?: string }[]>("/data/research/index.json");
+  const records = useMemo(() => new Map((researchIdx.data || []).filter((e) => e.scorecard).map((e) => [e.symbol, e.scorecard!])), [researchIdx.data]);
+
   if (feed.loading) return <Skeleton />;
   if (feed.error || !feed.data || !view)
     return <Empty title="No feed yet" body="The pipeline hasn't produced a feed. Run the “Refresh data” GitHub Action, or `npm run pipeline` locally." />;
 
   const isNew = (i: FeedItem) => prevVisit > 0 && Date.parse(i.time) > prevVisit;
   const winLabel = win === "custom" ? `since ${custom}` : `in the last ${WINDOWS.find((w) => w.key === win)?.label.toLowerCase()}`;
+  const spoken = briefScript({
+    windowLabel: winLabel, open: view.open, glance: view.normal.length, routine: view.routine.length, trips,
+    names: Object.fromEntries(feed.data.portfolio.map((p) => [p.symbol, p.name])),
+  });
 
   return (
     <main>
@@ -108,6 +118,8 @@ export default function Brief() {
           {view.normal.length} worth a glance, {view.routine.length} routine folded away.
         </span>
       </p>
+
+      <Listen lines={spoken} />
 
       {prices.data && (
         <Pulse prices={prices.data} muted={settings.muted} sinceMs={sinceMs} sessions={win === "24h" ? 1 : undefined}
@@ -152,7 +164,7 @@ export default function Brief() {
           {view.open.map((i, idx) => (
             <div id={`item-${i.id}`} key={i.id} className="scroll-mt-4">
               <TopCard item={i} series={prices.data?.series[i.symbol]} isNew={isNew(i)} done={false}
-                onDone={() => toggleDone(i.id)} animate={idx < 3} />
+                onDone={() => toggleDone(i.id)} animate={idx < 3} record={records.get(i.symbol)} />
             </div>
           ))}
         </section>
@@ -167,7 +179,7 @@ export default function Brief() {
           <div className="mt-2 space-y-3">
             {view.earlier.map((i, idx) => (
               <div id={`item-${i.id}`} key={i.id} className="scroll-mt-4">
-                <TopCard item={i} series={prices.data?.series[i.symbol]} isNew={isNew(i)} done={false} onDone={() => toggleDone(i.id)} animate={idx < 2} />
+                <TopCard item={i} series={prices.data?.series[i.symbol]} isNew={isNew(i)} done={false} onDone={() => toggleDone(i.id)} animate={idx < 2} record={records.get(i.symbol)} />
               </div>
             ))}
           </div>

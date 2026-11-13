@@ -18,6 +18,9 @@ import type { AnnualScan, CompanyBase, DocLink, Flag, UsageSummary } from "../ty
 const count = (t: string, re: RegExp) => (t.match(re) || []).length;
 const digits = (t: string) => count(t, /\d/g);
 
+/** Notes pages carry a running header naming the statement they belong to. */
+const basisWeight = (t: string) => (/consolidated/.test(t) ? 1.6 : /standalone|separate financial/.test(t) ? 0.6 : 1);
+
 /** Choose the pages worth reading. Exported for tests. */
 export function pickPages(pages: string[]): { auditor: number[]; contingent: number[]; related: number[] } {
   const lower = pages.map((p) => p.toLowerCase());
@@ -39,9 +42,9 @@ export function pickPages(pages: string[]): { auditor: number[]; contingent: num
         (/key audit matters?/.test(t) && /independent auditor|how our audit addressed|auditor.s response/.test(t) ? 2 : 0),
       3,
     ),
-    // the note with the numbers, not the accounting-policy paragraph
-    contingent: top((t) => (digits(t) > 120 ? 3 * count(t, /contingent liabilit/g) + 4 * count(t, /not acknowledged as debts?/g) + count(t, /disputed|guarantees? given/g) : 0), 2),
-    related: top((t) => (digits(t) > 150 && count(t, /related part(y|ies)/g) >= 2 ? count(t, /related part(y|ies)/g) + 2 * count(t, /key manage(rial|ment) personnel/g) : 0), 2),
+    // the note with the numbers, not the accounting-policy paragraph; consolidated over standalone
+    contingent: top((t) => (digits(t) > 120 ? basisWeight(t) * (3 * count(t, /contingent liabilit/g) + 4 * count(t, /not acknowledged as debts?/g) + count(t, /disputed|guarantees? given/g)) : 0), 2),
+    related: top((t) => (digits(t) > 150 && count(t, /related part(y|ies)/g) >= 2 ? basisWeight(t) * (count(t, /related part(y|ies)/g) + 2 * count(t, /key manage(rial|ment) personnel/g)) : 0), 2),
   };
 }
 
@@ -56,7 +59,7 @@ function toCrore(amount: number, unit: string): number | null {
 
 interface Raw {
   auditor?: { opinion?: string; emphasisOfMatter?: string; keyAuditMatters?: string[] };
-  contingentLiabilities?: { found?: boolean; totalAmount?: number | null; unit?: string; largest?: string[] };
+  contingentLiabilities?: { found?: boolean; basis?: string; totalAmount?: number | null; unit?: string; largest?: string[] };
   relatedParty?: { notable?: string[] };
 }
 
@@ -71,8 +74,15 @@ export function netWorthOf(b: Pick<CompanyBase, "balance">): number | null {
   return eq == null && res == null ? null : (eq ?? 0) + (res ?? 0);
 }
 
-export async function scanAnnualReport(doc: DocLink, netWorthCr: number | null, usage: UsageSummary): Promise<AnnualScan> {
-  const key = `ar:v1:${doc.url}`;
+export interface AnnualContext {
+  netWorthCr: number | null;
+  isLender: boolean;
+  basis: "consolidated" | "standalone"; // the basis of the net-worth figure
+}
+
+export async function scanAnnualReport(doc: DocLink, ctx: AnnualContext, usage: UsageSummary): Promise<AnnualScan> {
+  const { netWorthCr } = ctx;
+  const key = `ar:v2:${doc.url}`;
   const hit = await cache.get<AnnualScan>(key);
   if (hit) {
     usage.cacheHits++;
@@ -109,11 +119,12 @@ Return JSON:
  },
  "contingentLiabilities": {
    "found": true|false,
+   "basis": "consolidated|standalone|unclear",   // which statement that page belongs to, from its header
    "totalAmount": number|null,        // the printed total for the latest year; if no total is printed, the largest single item
    "unit": "the unit printed on that page, e.g. 'Rs crore', 'Rs lakh', 'Rs million', or 'not stated'",
-   "largest": ["<item>: <amount as printed>", max 3]
+   "largest": ["<item>: <amount as printed, with the unit>", max 3]
  },
- "relatedParty": {"notable": ["<=22 words each, max 3: the largest or most unusual transactions with promoter/KMP-linked entities, with amounts as printed"]}
+ "relatedParty": {"notable": ["<=22 words each, max 3: the largest or most unusual transactions with promoter/KMP-linked entities, with amounts as printed including the unit (e.g. 'Rs 437.74 crore')"]}
 }
 Prefer the CONSOLIDATED statements when both appear.
 
@@ -130,8 +141,14 @@ ${body}`,
   let contingent: AnnualScan["contingent"] = null;
   if (cl?.found && cl.totalAmount != null && isFinite(cl.totalAmount)) {
     const cr = toCrore(cl.totalAmount, cl.unit || "");
-    const pct = cr != null && netWorthCr && netWorthCr > 0 ? (cr / netWorthCr) * 100 : null;
+    const basis = (["consolidated", "standalone"].includes(cl.basis || "") ? cl.basis : "unclear") as "consolidated" | "standalone" | "unclear";
+    // A ratio only means something when numerator and denominator come from the same
+    // statement, and never for a lender (its "contingent liabilities" are mostly the
+    // notional value of forex and derivative contracts).
+    const comparable = !ctx.isLender && basis === ctx.basis;
+    const pct = comparable && cr != null && netWorthCr && netWorthCr > 0 ? (cr / netWorthCr) * 100 : null;
     contingent = {
+      basis,
       printed: `${cl.totalAmount.toLocaleString("en-IN")} ${cl.unit && !/not stated/i.test(cl.unit) ? cl.unit.replace(/^rs\.?\s*/i, "₹ ") : "(unit not stated on the page)"}`,
       amountCr: cr == null ? null : Math.round(cr),
       // an absurd ratio means a misread unit: show the printed figure, make no claim
@@ -151,6 +168,13 @@ ${body}`,
         ? { text: `Contingent liabilities are ${contingent.pctNetWorth}% of net worth — large enough to matter if they crystallise`, tone: "bad" }
         : { text: `Contingent liabilities are ${contingent.pctNetWorth}% of net worth`, tone: "neutral" },
     );
+  else if (contingent && ctx.isLender)
+    flags.push({ text: "For a bank, contingent liabilities are mostly the notional value of forex and derivative contracts — not a like-for-like risk measure", tone: "neutral" });
+  else if (contingent && contingent.basis !== ctx.basis)
+    flags.push({
+      text: `Contingent-liabilities figure is from the ${contingent.basis === "unclear" ? "notes (statement unclear)" : contingent.basis + " accounts"}, so it isn't compared with ${ctx.basis} net worth${/subsidiar/i.test(contingent.largest.join(" ")) ? "; guarantees for its own subsidiaries are already in group debt" : ""}`,
+      tone: "neutral",
+    });
 
   const out: AnnualScan = {
     period: doc.period,

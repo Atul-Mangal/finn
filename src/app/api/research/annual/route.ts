@@ -6,11 +6,17 @@ import { newUsage } from "@/lib/llm";
 export const maxDuration = 300;
 
 export async function POST(req: Request) {
-  const { url, period, netWorth } = (await req.json()) as { url?: string; period?: string; netWorth?: number | null };
+  const { url, period, netWorth, isLender, basis } = (await req.json()) as {
+    url?: string; period?: string; netWorth?: number | null; isLender?: boolean; basis?: "consolidated" | "standalone";
+  };
   if (!url || !/^https?:\/\//.test(url)) return Response.json({ error: "url required" }, { status: 400 });
   const usage = newUsage();
   try {
-    const annual = await scanAnnualReport({ url, period: period || "", kind: "annual_report" }, netWorth ?? null, usage);
+    const annual = await scanAnnualReport(
+      { url, period: period || "", kind: "annual_report" },
+      { netWorthCr: netWorth ?? null, isLender: !!isLender, basis: basis === "standalone" ? "standalone" : "consolidated" },
+      usage,
+    );
     return Response.json({ annual, usage });
   } catch (e) {
     return Response.json({ error: (e as Error).message, usage }, { status: 502 });

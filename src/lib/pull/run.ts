@@ -38,7 +38,7 @@ export async function runResearch(symbol: string): Promise<Research> {
   // Latest annual report: auditor's opinion, contingent liabilities, related parties.
   let annual: Research["annual"] = null;
   if (llmAvailable() && base.annualReports[0]) {
-    annual = await scanAnnualReport(base.annualReports[0], netWorthOf(base), usage).catch((e: Error) => {
+    annual = await scanAnnualReport(base.annualReports[0], { netWorthCr: netWorthOf(base), isLender: base.isLender, basis: base.basis }, usage).catch((e: Error) => {
       console.log(`[annual] ${base.symbol}: ${e.message}`);
       return null;
     });

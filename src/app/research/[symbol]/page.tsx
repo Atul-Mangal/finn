@@ -57,7 +57,7 @@ export default function ResearchPage() {
       setAnnualBusy(true);
       const bs = (j.base as CompanyBase).balance, n = bs.headers.length;
       const netWorth = (bs.rows["equity"]?.[n - 1] ?? 0) + (bs.rows["reserves"]?.[n - 1] ?? 0) || null;
-      fetch("/api/research/annual", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: ar.url, period: ar.period, netWorth }) })
+      fetch("/api/research/annual", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: ar.url, period: ar.period, netWorth, isLender: (j.base as CompanyBase).isLender, basis: (j.base as CompanyBase).basis }) })
         .then(async (res) => {
           const a = await res.json();
           u = add(u, a.usage); setUsage(u);
@@ -451,7 +451,7 @@ function AnnualBlock({ a }: { a: AnnualScan }) {
       )}
       {a.contingent && (
         <div className="mt-4">
-          <h3 className="text-[13px] font-semibold">Contingent liabilities</h3>
+          <h3 className="text-[13px] font-semibold">Contingent liabilities{a.contingent.basis !== "unclear" ? `, ${a.contingent.basis}` : ""}</h3>
           <p className="num mt-1 text-[14px]">
             {a.contingent.printed}
             {a.contingent.amountCr != null && a.contingent.pctNetWorth != null && <span className="text-graphite"> (about ₹{a.contingent.amountCr.toLocaleString("en-IN")} Cr)</span>}
