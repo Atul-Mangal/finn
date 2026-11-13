@@ -34,6 +34,16 @@ export async function fetchEod(symbol: string, range = "6mo"): Promise<PriceSeri
         out.c.push(+c.toFixed(2));
         out.v.push(v);
       });
+      // End-of-day data only: while the market is open (or just after), today's bar
+      // is a partial day — half the volume, a mid-session price. Drop it.
+      const nowIst = new Date(Date.now() + 5.5 * 3600e3);
+      const todayIst = nowIst.toISOString().slice(0, 10);
+      const minutes = nowIst.getUTCHours() * 60 + nowIst.getUTCMinutes();
+      if (out.d[out.d.length - 1] === todayIst && minutes < 16 * 60) {
+        out.d.pop();
+        out.c.pop();
+        out.v.pop();
+      }
       return out;
     } catch (e) {
       lastErr = e;

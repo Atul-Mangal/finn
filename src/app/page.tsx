@@ -110,7 +110,8 @@ export default function Brief() {
       </p>
 
       {prices.data && (
-        <Pulse prices={prices.data} muted={settings.muted} flagged={new Set([...view.open, ...view.earlier].map((i) => i.symbol))} />
+        <Pulse prices={prices.data} muted={settings.muted} sinceMs={sinceMs} sessions={win === "24h" ? 1 : undefined}
+          flagged={new Set([...view.open, ...view.earlier].map((i) => i.symbol))} />
       )}
 
       {/* Tripwires that fired */}
