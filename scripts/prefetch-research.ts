@@ -15,6 +15,7 @@ import { saveWorkingModels } from "./lib/models-file";
 const store = fileCache(path.join(process.cwd(), "data", "research-cache.json"));
 setCacheStore(store);
 const OUT = path.join(process.cwd(), "public", "data", "research");
+const idxFileFor = () => path.join(OUT, "index.json");
 
 async function main() {
   fs.mkdirSync(OUT, { recursive: true });
@@ -23,7 +24,20 @@ async function main() {
   for (const s of symbols) {
     try {
       const r = await runResearch(s);
-      fs.writeFileSync(path.join(OUT, `${r.base.symbol}.json`), JSON.stringify(r));
+      const file = path.join(OUT, `${r.base.symbol}.json`);
+      // Never replace a complete report with a worse one (e.g. the free AI quota
+      // ran out mid-run): keep the previous report until a full one succeeds.
+      let prevOk = false;
+      try {
+        prevOk = !!JSON.parse(fs.readFileSync(file, "utf8")).analysis;
+      } catch {}
+      if (!r.analysis && prevOk) {
+        console.log(`[prefetch] ${s}: judgment step failed (${r.analysisError}); keeping the previous complete report`);
+        index.push(JSON.parse(fs.readFileSync(idxFileFor(), "utf8")).find((e: { symbol: string }) => e.symbol === r.base.symbol) || { symbol: r.base.symbol, name: r.base.name, generatedAt: r.generatedAt });
+        store.save();
+        continue;
+      }
+      fs.writeFileSync(file, JSON.stringify(r));
       index.push({ symbol: r.base.symbol, name: r.base.name, generatedAt: r.generatedAt, scorecard: r.analysis ? scoreLine(r.analysis.promises) : undefined });
       if (r.analysisError) console.log(`[prefetch] ${s}: judgment step failed: ${r.analysisError}`);
       console.log(`[prefetch] ${s}: ${r.extracts.length} transcripts, ${r.usage.cheapCalls}+${r.usage.strongCalls} calls, $${r.usage.estCostUSD}`);
