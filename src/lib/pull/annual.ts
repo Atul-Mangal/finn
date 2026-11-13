@@ -82,7 +82,7 @@ export interface AnnualContext {
 
 export async function scanAnnualReport(doc: DocLink, ctx: AnnualContext, usage: UsageSummary): Promise<AnnualScan> {
   const { netWorthCr } = ctx;
-  const key = `ar:v2:${doc.url}`;
+  const key = `ar:v3:${doc.url}`;
   const hit = await cache.get<AnnualScan>(key);
   if (hit) {
     usage.cacheHits++;
@@ -144,7 +144,10 @@ ${body}`,
     // A ratio only means something when numerator and denominator come from the same
     // statement, and never for a lender (its "contingent liabilities" are mostly the
     // notional value of forex and derivative contracts).
-    const comparable = !ctx.isLender && basis === ctx.basis;
+    // Nor when the list is dominated by guarantees for the company's own subsidiaries:
+    // that borrowing is already inside group debt, so counting it again would mislead.
+    const intraGroup = /guarantee[^:;]*\b(subsidiar|group compan|step-?down|joint venture)/i.test((cl.largest || []).join("; "));
+    const comparable = !ctx.isLender && basis === ctx.basis && !intraGroup;
     const pct = comparable && cr != null && netWorthCr && netWorthCr > 0 ? (cr / netWorthCr) * 100 : null;
     contingent = {
       basis,
@@ -169,6 +172,8 @@ ${body}`,
     );
   else if (contingent && ctx.isLender)
     flags.push({ text: "For a bank, contingent liabilities are mostly the notional value of forex and derivative contracts — not a like-for-like risk measure", tone: "neutral" });
+  else if (contingent && /guarantee[^:;]*\b(subsidiar|group compan|step-?down|joint venture)/i.test(contingent.largest.join("; ")))
+    flags.push({ text: "Contingent liabilities are mostly guarantees for its own subsidiaries' borrowing, which is already in group debt — not compared with net worth", tone: "neutral" });
   else if (contingent && contingent.basis !== ctx.basis)
     flags.push({
       text: `Contingent-liabilities figure is from the ${contingent.basis === "unclear" ? "notes (statement unclear)" : contingent.basis + " accounts"}, so it isn't compared with ${ctx.basis} net worth${/subsidiar/i.test(contingent.largest.join(" ")) ? "; guarantees for its own subsidiaries are already in group debt" : ""}`,
