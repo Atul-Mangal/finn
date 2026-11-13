@@ -5,10 +5,11 @@ name: Refresh data
 
 on:
   schedule:
-    # Hourly through Indian market hours (09:00–17:00 IST), weekdays — filings land intraday
-    - cron: "30 3-11 * * 1-5"
-    # After close, once EOD prices are final (19:00 IST)
-    - cron: "30 13 * * 1-5"
+    # Twice a day, every day (IST): ~8:00 before the market opens, ~15:00 near
+    # the close. GitHub often starts scheduled jobs late, so they're set ~13
+    # minutes early and off the busy top of the hour.
+    - cron: "17 2 * * *"  # 07:47 IST
+    - cron: "17 9 * * *"  # 14:47 IST
   workflow_dispatch:
     inputs:
       window_days:

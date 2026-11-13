@@ -11,7 +11,7 @@ A mobile-first investing agent for Indian equities, built for the ENAM AI Engine
 ## How it works
 
 ```
-GitHub Actions (hourly in market hours + after close)          Vercel (Next.js, mobile web app)
+GitHub Actions (twice a day (8 am and 3 pm IST))          Vercel (Next.js, mobile web app)
 ┌──────────────────────────────────────────────────┐           ┌───────────────────────────────┐
 │ Yahoo EOD ─┐                                      │  commit   │ Brief / Tripwires read static  │
 │ BSE filings ┼─ rules classify ─ score ─ cluster ──┼──JSON────▶│ JSON: instant, no waiting      │
