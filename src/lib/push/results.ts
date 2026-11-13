@@ -35,7 +35,8 @@ const SYSTEM =
 
 function prompt(text: string) {
   return `From the results statement below, extract the QUARTERLY columns ("3 months/quarter ended") only — ignore half-year, nine-month and full-year columns.
-Use the CONSOLIDATED statement if one is present, otherwise standalone.
+Use the CONSOLIDATED statement if one is present, otherwise standalone — and take ALL columns from that
+same statement (never mix a consolidated column with a standalone one).
 Return JSON:
 {
  "found": true|false,            // false if this document has no results table

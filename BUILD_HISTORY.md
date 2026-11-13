@@ -3,7 +3,7 @@
 A turn-by-turn record of the AI-assisted build of FINN.
 
 - **Tool:** Claude (Anthropic) working as a coding agent in a claude.ai agent workspace. It had a Linux shell, file tools, headless Chrome for phone-size screenshots, and push access to this repo.
-- **Coverage:** one continuous conversation over two working days, 9 and 11 Nov 2026. Times are IST.
+- **Coverage:** one continuous conversation over three working days, 9, 11 and 13 Nov 2026. Times are IST.
 - **Format:** "Human" turns are the requests made, paraphrased closely. "Claude" turns summarise what it did, the commands and checks it ran, and what it decided and why. Short exchanges about API-key handling are left out; no key appears here. Every code change ends in a commit you can open (`git log`). The `data:` commits are the scheduled jobs.
 
 [BUILD_LOG.md](BUILD_LOG.md) is the one-page version.
@@ -185,6 +185,58 @@ The second run burned through daily free quotas (3.6 exhausted, 3.8 hanging, so 
 - transcript rows → link to that company's promise check; the Tripwires list → capped at 8.
 
 → **`c6967a8`**. It also flagged that ENAM asks for the actual conversations as build history, which led to this document.
+
+---
+
+## Day 5: Friday 13 November
+
+### 11:54 — Status, and a deadline-day risk
+**Claude:** pulled the repo and the Actions history. All jobs had been green since Wednesday, the feed had 221 filings, and the "read the filing" fix was working: HAL's credit-rating line now says ICRA *withdrew* ₹6,050 Cr of ratings at the company's request.
+
+It noticed the weekly research job is scheduled for Sunday evening, the deadline day. If the free quota ran out mid-run, it would overwrite the 5 complete demo reports with partial ones. → **`4339865`**: a complete report is never replaced by a worse one.
+
+### 12:15 — Schedule
+**Human:** asked for the data refresh at 8 am and 3 pm instead of hourly plus night.
+
+**Claude:** switched to two daily runs, set about 13 minutes early because GitHub often starts scheduled jobs late. Docs updated. → **`106b5a8`, `c818120`**
+
+### 12:16 — "Anything to add? Make the UI cool"
+**Claude:** kept the identity (stone, ink, highlighter) and added things that look good *and* carry information:
+- **portfolio pulse:** every holding as a tile tinted by its move, with a dot for names with an important filing;
+- **swipe right to mark a card done** (the button stays for accessibility);
+- **a 30-day sparkline** on each card;
+- **a segmented promise bar** under each research headline;
+- **dark mode** following the phone;
+- **phone screenshots from real data** in the README.
+
+Screenshot review caught three problems:
+- In dark mode the highlighter made text unreadable. It needed a translucent stroke, and the CSS rule order was wrong.
+- Five tile columns truncated names; switched to four.
+- **HAL's results card was all dashes.** The model had returned the table with every value empty, and an all-blank read wasn't treated as a failure. Now it is, and HAL falls back to screener.in (₹7,613 Cr revenue, ₹1,936 Cr PAT).
+
+→ **`330ef77`**, then a manual refresh to confirm.
+
+### 12:23 — "Is this like a Bloomberg Terminal?"
+**Claude:** same world, opposite philosophy. Bloomberg aggregates everything for professionals; the brief says the scarce skill is filtering. Copying its breadth would be wrong. Two Bloomberg habits fit, cheap and built from existing data:
+- **Market reaction per filing:** same session if filed before the 15:30 close, otherwise the next.
+- **A "Coming up" calendar:** dates parsed out of board-meeting, earnings-call and AGM notices, with tests.
+
+→ **`bfc5a43`**
+
+### 12:26 — "Same numbers for both windows — how?"
+**Human:** sent screenshots. The pulse tiles were identical for "24 hours" and "Month".
+
+**Claude:** the tiles always showed the last session. Changed them to show each holding's move over the selected window, e.g. Bharti Airtel +0.6% for the session vs +17.5% for the month. The same screenshot exposed a second bug: the refresh triggered at 12:24 had captured today's **half-finished** trading day. Prices are now end-of-day only (today's bar is dropped until after the close). → **`a63a31b`**, refresh re-run, and the latest price date confirmed as the previous session.
+
+### 12:27 — "Check all prompts, I think you missed something"
+**Claude:** re-read every request in the conversation and every model prompt in the code. Found:
+- this build history and the docs had stopped on Wednesday;
+- the email was out of date;
+- the 3 pm run happens before the close, so after the end-of-day fix it updates filings but not that day's prices;
+- the results-extraction prompt never said "take all columns from the same statement", the likely cause of the mixed consolidated/standalone reads the cross-check had caught;
+- the analysis prompt still asked for a verdict line the app no longer uses (wasted tokens).
+
+Prompts fixed, results re-extracted, docs and this history updated.
 
 ---
 

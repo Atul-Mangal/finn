@@ -4,6 +4,10 @@
 
 An investor doesn't need more information; they need to know what they can ignore. So FINN opens with one sentence, not a dashboard: *"3 filings need you in the last 24 hours. 6 worth a glance, 41 routine folded away."* Then it shows exactly those three, fully worked. The visual language follows: only what matters gets a highlighter stroke. Mid-priority items are one line each. Routine paperwork is collapsed into a count.
 
+FINN is deliberately the opposite of a Bloomberg Terminal. Bloomberg shows a trained professional everything and leaves the filtering to them. FINN's job is deciding what you can ignore. Only two Bloomberg habits were borrowed, because they serve that filter:
+- **Market reaction:** each card shows the move on the first session that could react to the filing.
+- **An events calendar:** the dates inside routine board-meeting notices become a "Coming up" list instead of more paperwork.
+
 I deliberately didn't make chat the main interface. A chat box makes the investor do the work of knowing what to ask. FINN asks the analyst's questions itself (*did they deliver what they promised? does the cash match the profit?*) and the investor taps.
 
 ## Push
@@ -37,6 +41,10 @@ Failed checks are shown on the card. For banks and NBFCs, EBITDA is reported as 
 - Everything is cached by filing ID in a committed JSON file, so a filing is processed exactly once, ever.
 
 **Tripwires calibrate themselves.** Instead of just asking for "volume ×" and "price %", the settings screen runs the thresholds over the last 60 sessions and says *"about 4 alerts a week."* The investor sets the noise level, not an abstract number.
+
+**End-of-day means end of day.** A run during market hours would capture a half-finished day: half the volume, a mid-session price. That would make volume tripwires fire late and price moves look wrong, so today's bar is dropped until after the close.
+
+**The portfolio pulse follows the window.** The tiles show each holding's move over the window you picked, not always the last session. Otherwise switching "24 hours" to "Month" would change the filings but not the prices, which looks broken.
 
 **Static data, not a live backend.** A GitHub Action runs the pipeline twice a day (about 8 am, before the open, and 3 pm, near the close), then commits JSON. The commit redeploys the app. The phone never waits on a scraper, nothing breaks if BSE is slow at the moment you open the app, and hosting is free.
 

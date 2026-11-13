@@ -2,7 +2,7 @@
 
 A mobile-first investing agent for Indian equities, built for the ENAM AI Engineer Build Challenge.
 
-- **Brief (push):** every exchange filing across a 20-stock portfolio for the window you pick, ranked by materiality. Results arrive as headline numbers (Revenue, EBITDA, PBT, PAT, QoQ and YoY). Management changes arrive with who the incoming person is. Routine paperwork is folded away.
+- **Brief (push):** every exchange filing across a 20-stock portfolio for the window you pick, ranked by materiality. Results arrive as headline numbers (Revenue, EBITDA, PBT, PAT, QoQ and YoY). Management changes arrive with who the incoming person is. Routine paperwork is folded away. Each card shows how the market took the filing, with a 30-day sparkline, and swipes away when handled. A pulse grid tints every holding by its move over the window, and a "Coming up" calendar pulls dates out of board-meeting notices. Dark mode follows the phone.
 - **Tripwires (push):** you set what "unusual" means (volume ×, price move %, filing types). The screen tells you live how many alerts a week that setting would have produced, so you can calibrate noise before it happens.
 - **Research (pull):** any NSE symbol. FINN reads the last five earnings-call transcripts and checks what management promised against what the filed numbers show. Then it gives trajectory, balance sheet, cash quality, current guidance and a bull/bear case. Primary sources only.
 
