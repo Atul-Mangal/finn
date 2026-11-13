@@ -245,6 +245,28 @@ Prompts fixed, results re-extracted, docs and this history updated.
 
 **Human:** agreed to move the afternoon run after the close. → refresh at 8 am and **4:15 pm** IST.
 
+### 12:53 — "Check everything, add what makes it unique, check the PDF for anything missing"
+**Claude:** verified the state first: all jobs green, both deploys live, tests passing, feed error-free. Then re-read the brief's deliverables and requirements line by line. Two gaps:
+- **Annual reports.** The brief names them as a research source, and its glossary defines auditor's qualification, contingent liabilities and related-party transactions. FINN read transcripts but never opened an annual report.
+- **Interaction experiments.** The brief invites "chat, voice, a copilot… more than the obvious". FINN had screens only.
+
+**Annual-report red-flag scan** → **`b9ecdb2`**. Every page's text is extracted locally; about 7 pages are picked by keyword; one cheap call reads them. Tested on the five real reports through the Actions job: 7 of 294–678 pages read, about $0.001 each. Reading the output caught three problems:
+- Kaynes showed a red "contingent liabilities are 68% of net worth". The largest item was a guarantee to its own subsidiary, read from the standalone accounts. → prefer consolidated pages; the model reports which statement the figure came from; the ratio is only computed when figure and net worth match (**`b72caab`**).
+- The model then labelled the same figure "consolidated". → code no longer trusts the label alone: when guarantees for own subsidiaries dominate, no ratio is claimed (**`872d160`**).
+- One reply failed to parse because the model echoed the `//` comments from the prompt's template. → comment-free template and a tolerant parser, with a test (**`8d4e183`**).
+
+HDFC Bank's ₹34.8 lakh crore of contingent liabilities now carries a note that for a bank this is mostly derivative notional.
+
+**Spoken brief** → **`b72caab`**. A "Listen" button reads the brief aloud. The script is built in code from the ranked feed and spoken by the device's speech engine: no model, no cost. Results cards also link to management's promise record.
+
+Claude had removed an unused field from the judgment prompt earlier in the day. It restored the original wording, so the five audited reports keep their cached verdicts instead of being re-judged two days before the deadline.
+
+**A data bug found during the visual pass** → the "24 hours" pulse header read "11 Nov to 12 Nov". Sun Pharma and Maruti had lost their 12 Nov bar: Yahoo intermittently returns blanks for the most recent session. Refreshes now merge into the stored history and never drop a saved bar; the pulse and tripwires skip a holding whose data lags; the two bars were restored from an earlier run. Test added.
+
+Final pass: every screen checked at 360 px in light and dark mode, with no overflow and no console errors.
+
+Also: a QR code in the README. Setting the repo's description and website link was blocked from the workspace, so that was left for Atul.
+
 ---
 
 ## How the work was split

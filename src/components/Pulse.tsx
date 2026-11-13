@@ -14,8 +14,10 @@ export function Pulse({ prices, flagged, muted, sinceMs, sessions }: {
   sessions?: number; // for "24 hours": exactly the last session
 }) {
   const sinceDay = new Date(sinceMs + 5.5 * 3600e3).toISOString().slice(0, 10);
+  const latest = Object.values(prices.series).map((x) => x.d[x.d.length - 1]).sort().pop();
   const rows = Object.entries(prices.series)
-    .filter(([s, ser]) => !muted.includes(s) && ser.c.length >= 2)
+    // a holding whose data lags the others would show a stale move: leave it out
+    .filter(([s, ser]) => !muted.includes(s) && ser.c.length >= 2 && ser.d[ser.d.length - 1] === latest)
     .map(([symbol, ser]) => {
       const n = ser.c.length;
       // Move over the window: from the close before the window's first session to the latest close.

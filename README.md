@@ -4,11 +4,14 @@ A mobile-first investing agent for Indian equities, built for the ENAM AI Engine
 
 - **Brief (push):** every exchange filing across a 20-stock portfolio for the window you pick, ranked by materiality. Results arrive as headline numbers (Revenue, EBITDA, PBT, PAT, QoQ and YoY). Management changes arrive with who the incoming person is. Routine paperwork is folded away. Each card shows how the market took the filing, with a 30-day sparkline, and swipes away when handled. A pulse grid tints every holding by its move over the window, and a "Coming up" calendar pulls dates out of board-meeting notices. Dark mode follows the phone.
 - **Tripwires (push):** you set what "unusual" means (volume ×, price move %, filing types). The screen tells you live how many alerts a week that setting would have produced, so you can calibrate noise before it happens.
-- **Research (pull):** any NSE symbol. FINN reads the last five earnings-call transcripts and checks what management promised against what the filed numbers show. Then it gives trajectory, balance sheet, cash quality, current guidance and a bull/bear case. Primary sources only.
+- **Research (pull):** any NSE symbol. FINN reads the last five earnings-call transcripts and checks what management promised against what the filed numbers show. Then it gives trajectory, balance sheet, cash quality, current guidance and a bull/bear case. It also scans the latest annual report for the three things analysts check first: the auditor's opinion, contingent liabilities and related-party dealings. Primary sources only.
+- **Listen:** the brief can be read aloud. The script is built in code from the ranked feed and spoken by the phone's own speech engine, so it costs nothing.
 
-**Try it on a phone:** https://finn-92ls.vercel.app (add to home screen; it installs as an app).
+**Try it on a phone:** https://finn-92ls.vercel.app (add to home screen; it installs as an app). Or scan:
 
-![FINN on a phone: Brief with portfolio pulse, Kaynes promise ledger, Tripwires calibration, HDFC Bank research in dark mode](docs/screens.png)
+<img src="docs/qr.png" alt="QR code for https://finn-92ls.vercel.app" width="132">
+
+![FINN on a phone: the Brief with the Listen button and portfolio pulse, the Kaynes promise ledger, annual-report red flags, and Tripwires in dark mode](docs/screens.png)
 
 ## How it works
 
@@ -32,8 +35,9 @@ GitHub Actions (daily, ~8 am + 4:15 pm IST)              Vercel (Next.js, mobile
 | Research numbers | screener.in tables → `metrics.ts` (pure code) | Every computable number is computed |
 | Guidance | Cheap model, one call per transcript, cached forever per URL | A transcript never changes |
 | Promise vs delivered, bull/bear | **One** strong-model call over compact extracted facts | The only step that needs reasoning |
+| Annual report | Every page's text is extracted locally; ~7 pages are picked by keyword; one cheap call. "% of net worth" in code | A 500-page PDF costs about $0.001 instead of dollars |
 
-Measured costs: a feed refresh is mostly cache hits (often zero new model calls). A fresh research report is 5 small-model calls plus 1 large-model call, about $0.01–0.015 (~₹1) at list price, and ₹0 on Gemini's free tier. Every number on screen is cross-checked or computed in code; see [DECISIONS.md](DECISIONS.md#what-real-data-broke-and-what-changed).
+Measured costs: a feed refresh is mostly cache hits (often zero new model calls). A fresh research report is 6 small-model calls plus 1 large-model call, about $0.01–0.015 (~₹1) at list price, and ₹0 on Gemini's free tier. Every number on screen is cross-checked or computed in code; see [DECISIONS.md](DECISIONS.md#what-real-data-broke-and-what-changed).
 
 ## Run it
 
@@ -57,7 +61,8 @@ npm run check                    # verify portfolio BSE codes / Yahoo symbols
 
 ```
 src/lib/push/     prices, BSE filings, classifier + scoring, results extraction, people, summaries
-src/lib/pull/     screener parser, deterministic metrics & flags, transcript guidance, analysis
+src/lib/pull/     screener parser, deterministic metrics & flags, transcript guidance, analysis, annual-report scan
+src/lib/speak.ts  the spoken brief (script built in code, no model)
 src/lib/llm.ts    two-tier model router (cheap/strong), caching, cost accounting; Gemini or any OpenAI-compatible API
 src/lib/alerts.ts tripwire logic (pure; also powers the live "alerts per week" calibration)
 src/app/          Brief (/), Tripwires, Research + API routes

@@ -51,3 +51,20 @@ export async function fetchEod(symbol: string, range = "6mo"): Promise<PriceSeri
   }
   throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
+
+/**
+ * Yahoo intermittently returns blanks for recent sessions, then fills them in
+ * later. So a refresh never throws away a bar we already stored: fresh data
+ * wins where it exists, stored bars fill the gaps (within the fresh range).
+ */
+export function mergeSeries(stored: PriceSeries | undefined, fresh: PriceSeries): PriceSeries {
+  if (!stored?.d.length) return fresh;
+  if (!fresh.d.length) return stored;
+  const rows = new Map<string, [number, number]>();
+  stored.d.forEach((d, i) => {
+    if (d >= fresh.d[0]) rows.set(d, [stored.c[i], stored.v[i]]);
+  });
+  fresh.d.forEach((d, i) => rows.set(d, [fresh.c[i], fresh.v[i]]));
+  const dates = [...rows.keys()].sort();
+  return { d: dates, c: dates.map((d) => rows.get(d)![0]), v: dates.map((d) => rows.get(d)![1]) };
+}

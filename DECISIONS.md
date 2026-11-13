@@ -8,6 +8,10 @@ FINN is deliberately the opposite of a Bloomberg Terminal. Bloomberg shows a tra
 - **Market reaction:** each card shows the move on the first session that could react to the filing.
 - **An events calendar:** the dates inside routine board-meeting notices become a "Coming up" list instead of more paperwork.
 
+**Voice is output only.** The brief has a "Listen" button. The script is built in code from the same ranked items the screen shows, and the phone's own speech engine reads it, so it needs no model and costs nothing. An investor walking in to work wants to hear what changed. They don't want to hold a conversation with their portfolio.
+
+**Push and pull are joined.** A results card links to management's promise record for that company, so "what just happened" sits next to "do these people usually deliver".
+
 I deliberately didn't make chat the main interface. A chat box makes the investor do the work of knowing what to ask. FINN asks the analyst's questions itself (*did they deliver what they promised? does the cash match the profit?*) and the investor taps.
 
 ## Push
@@ -61,6 +65,13 @@ This fits serverless timeouts, lets the UI show progress, and means the numbers 
 
 **Promise vs delivered is the centre of the research view.** The strong model gets guidance items with their verbatim quotes (from the cheap extraction) and a table of delivered numbers computed in code. It must cite a number or quote for every verdict, and use "unverifiable" when the tables can't settle a point (e.g. segment targets). It is told not to use outside knowledge of the company. I read 5 transcripts, not 4, so that promises made 4 quarters ago can be checked against the quarters after them.
 
+**The annual report is scanned, not read.** A 300–700 page report sent whole to a model would cost more than everything else FINN does combined. An analyst doesn't read it cover to cover either; they go to three places first. So FINN:
+- extracts every page's text locally, which is free;
+- picks about 7 pages by keyword: the auditor's opinion, the contingent-liabilities note and the related-party note, preferring consolidated over standalone;
+- sends only those pages to the cheap model in one call, about $0.001 per report.
+
+Code then converts units and computes "% of net worth". It makes that comparison only when the figure and the net worth come from the same statement. It never makes it for a bank, whose contingent liabilities are mostly the notional value of derivative contracts. It never makes it when the list is dominated by guarantees for the company's own subsidiaries, because that borrowing is already in group debt. Kaynes first showed a red "68% of net worth" flag for exactly that reason; it now shows the items with a neutral explanation.
+
 **It generalises.** Nothing is tied to the demo set. Any NSE symbol that screener.in covers works:
 - consolidated figures, falling back to standalone;
 - banks detected automatically and handled differently;
@@ -89,13 +100,17 @@ The first live runs found problems that the sample data couldn't. Each fix is in
 | Bank research said "OPM is −6%". screener's bank "financing margin" isn't an operating margin. | For lenders the margin column and its flags are dropped. Verdicts that rely only on management's own later claim are marked "unverifiable", labelled "Per management". |
 | The research job and the hourly refresh both wrote the same cache file, and a merge conflict lost a run's output. | Separate cache files. Each job re-applies its outputs on top of the latest main before pushing. |
 | One failed model call threw away a whole research report. | Reports are saved with numbers and transcript extracts even if the judgment step fails, and the UI offers a retry. |
+| The annual-report scan flagged Kaynes's contingent liabilities at 68% of net worth, in red. The largest item was a guarantee to its own subsidiary. | No ratio when the figure and net worth come from different statements, for banks, or when intra-group guarantees dominate. |
+| The cheap model echoed the `//` comments from a prompt's JSON template, and the reply failed to parse. | Comment-free template, and the parser repairs echoed comments and trailing commas. |
+| A refresh during market hours captured a half-finished trading day. | Prices are end-of-day only: today's bar is dropped until after the close. |
+| Yahoo returned blanks for the latest session for two holdings, so their "last session" move was really a two-day move. | Refreshes merge into the stored history and never drop a bar already saved. The pulse and tripwires skip any holding whose data lags the rest, and the run reports it. |
 
 ## What I deliberately left out
 
 - **Real push notifications.** Web Push needs a subscription server and iOS home-screen install. The Tripwires screen shows what *would* have fired; delivery is the obvious next step.
 - **NSE as a filings source.** NSE's API blocks non-browser clients; BSE carries the same filings and is reliable from a cron job.
 - **Chat.** Covered above. A "follow-up question about this company", grounded in the cached transcript extracts, is a natural addition.
-- **Annual-report deep reads.** Contingent liabilities, related-party transactions and auditor qualifications sit in 300-page PDFs. The plumbing (`pdf.ts` plus `annualReports` links) is there. It needs section-targeted chunking to stay cheap.
+- **Reading whole annual reports.** FINN reads about 7 pages of each (see below). Segment notes, management discussion and the full notes to accounts are left for later.
 - **Intraday prices.** The brief asked for end-of-day data.
 
 ## Known limitations
@@ -108,5 +123,5 @@ The first live runs found problems that the sample data couldn't. Each fix is in
 
 1. Push delivery (Web Push / Telegram) with a per-investor schedule ("brief at 8:45, tripwires live").
 2. Learn from "Done": items the investor always dismisses should sink automatically.
-3. Annual-report red-flag scan: contingent liabilities, related-party transactions, auditor remarks, pledge trend.
+3. Deeper annual-report reading: segment notes, year-on-year changes in the red-flag items, and the promoter pledge trend.
 4. A promise ledger that persists across quarters, so management credibility becomes a tracked score per company.

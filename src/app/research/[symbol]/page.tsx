@@ -440,7 +440,16 @@ function Progress({ stages }: { stages: Stage[] }) {
   );
 }
 
-function AnnualBlock({ a }: { a: AnnualScan }) {
+/** Many annual-report PDFs encode the rupee sign as a backtick. */
+const rupee = (t: string) => t.replace(/`\s*\/?\s*/g, "₹ ").replace(/\bRs\.?\s*/g, "₹ ").replace(/₹\s+₹/g, "₹").replace(/\s+/g, " ").trim();
+
+function AnnualBlock({ a: raw }: { a: AnnualScan }) {
+  const a: AnnualScan = {
+    ...raw,
+    flags: raw.flags.map((f) => ({ ...f, text: rupee(f.text) })),
+    relatedParty: raw.relatedParty.map(rupee),
+    contingent: raw.contingent && { ...raw.contingent, printed: rupee(raw.contingent.printed), largest: raw.contingent.largest.map(rupee) },
+  };
   return (
     <div>
       <Flags flags={a.flags} />
@@ -451,7 +460,7 @@ function AnnualBlock({ a }: { a: AnnualScan }) {
       )}
       {a.contingent && (
         <div className="mt-4">
-          <h3 className="text-[13px] font-semibold">Contingent liabilities{a.contingent.basis !== "unclear" ? `, ${a.contingent.basis}` : ""}</h3>
+          <h3 className="text-[13px] font-semibold">Contingent liabilities{a.contingent.pctNetWorth != null ? `, ${a.contingent.basis}` : ""}</h3>
           <p className="num mt-1 text-[14px]">
             {a.contingent.printed}
             {a.contingent.amountCr != null && a.contingent.pctNetWorth != null && <span className="text-graphite"> (about ₹{a.contingent.amountCr.toLocaleString("en-IN")} Cr)</span>}

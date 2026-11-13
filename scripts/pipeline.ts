@@ -17,7 +17,7 @@ import { setCacheStore, cache } from "../src/lib/cache";
 import { llmAvailable, newUsage, MODELS } from "../src/lib/llm";
 import { mapLimit, sleep } from "../src/lib/http";
 import { pdfText } from "../src/lib/pdf";
-import { fetchEod } from "../src/lib/push/prices";
+import { fetchEod, mergeSeries } from "../src/lib/push/prices";
 import { attachmentUrls, fetchAnnouncements, istToIso, type BseAnnouncement } from "../src/lib/push/bse";
 import { llmClassify, ruleClassify, scorePriority, tierOf } from "../src/lib/push/classify";
 import { cardFromScreener, extractResults, reconcile } from "../src/lib/push/results";
@@ -57,13 +57,24 @@ async function main() {
 
   // 1. Prices
   const prices: Prices = { generatedAt: new Date().toISOString(), series: {} };
+  let stored: Prices | null = null;
+  try {
+    stored = JSON.parse(fs.readFileSync(path.join(OUT, "prices.json"), "utf8"));
+    if (stored?.sample) stored = null;
+  } catch {}
   await mapLimit(PORTFOLIO, 4, async (p) => {
+    const kept = stored?.series[p.symbol];
     try {
-      prices.series[p.symbol] = await fetchEod(p.symbol);
+      prices.series[p.symbol] = mergeSeries(kept, await fetchEod(p.symbol));
     } catch (e) {
+      if (kept) prices.series[p.symbol] = kept; // keep yesterday's history rather than lose the holding
       errors.push(`prices ${p.symbol}: ${(e as Error).message}`);
     }
   });
+  // a holding whose latest bar lags the rest: say so (the app ignores it for "last session")
+  const latest = Object.values(prices.series).map((x) => x.d[x.d.length - 1]).sort().pop();
+  for (const [sym, ser] of Object.entries(prices.series))
+    if (ser.d[ser.d.length - 1] !== latest) errors.push(`prices ${sym}: latest bar is ${ser.d[ser.d.length - 1]}, others have ${latest}`);
   log(`prices: ${Object.keys(prices.series).length}/${PORTFOLIO.length}`);
   if (Object.keys(prices.series).length) fs.writeFileSync(path.join(OUT, "prices.json"), JSON.stringify(prices));
 

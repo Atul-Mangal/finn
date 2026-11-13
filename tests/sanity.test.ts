@@ -10,6 +10,7 @@ import { eventDate, eventWhat } from "../src/lib/push/events";
 import { pickPages } from "../src/lib/pull/annual";
 import { briefScript, speakable } from "../src/lib/speak";
 import { parseJsonLoose } from "../src/lib/llm";
+import { mergeSeries } from "../src/lib/push/prices";
 
 test("rules classify common BSE subjects", () => {
   const cases: [string, string][] = [
@@ -155,4 +156,12 @@ test("spoken brief is built from the ranked data", () => {
 test("tolerant JSON parsing keeps URLs intact", () => {
   const raw = '```json\n{\n "a": 1, // the total\n "u": "https://x.in/a",\n "l": ["p", "q",],\n}\n```';
   assert.deepEqual(parseJsonLoose(raw), { a: 1, u: "https://x.in/a", l: ["p", "q"] });
+});
+
+test("price history never loses a stored bar", () => {
+  const stored = { d: ["2026-11-06", "2026-11-09", "2026-11-11", "2026-11-12"], c: [1, 2, 3, 4], v: [10, 20, 30, 40] };
+  const fresh = { d: ["2026-11-09", "2026-11-11", "2026-11-13"], c: [2.5, 3, 5], v: [21, 30, 50] }; // 12 Nov came back blank
+  const m = mergeSeries(stored, fresh);
+  assert.deepEqual(m.d, ["2026-11-09", "2026-11-11", "2026-11-12", "2026-11-13"]); // gap filled, older-than-range dropped
+  assert.deepEqual(m.c, [2.5, 3, 4, 5]); // fresh wins where both exist
 });

@@ -31,9 +31,12 @@ export interface PriceTrip {
 
 export function priceTrips(prices: Prices, s: Settings, sessions = 1): PriceTrip[] {
   const out: PriceTrip[] = [];
+  // "Latest session" means the portfolio's latest date: a holding whose data lags is skipped.
+  const latest = Object.values(prices.series).map((x) => x.d[x.d.length - 1]).sort().pop();
   for (const [symbol, ser] of Object.entries(prices.series)) {
     if (s.muted.includes(symbol)) continue;
     const n = ser.c.length;
+    if (sessions === 1 && ser.d[n - 1] !== latest) continue;
     for (let i = Math.max(s.volLookback, 1, n - sessions); i < n; i++) {
       const window = ser.v.slice(i - s.volLookback, i);
       const avg = window.reduce((a, b) => a + b, 0) / (window.length || 1);
