@@ -238,6 +238,13 @@ Screenshot review caught three problems:
 
 Prompts fixed, results re-extracted, docs and this history updated.
 
+### 12:46–12:47 — Follow-ups
+**Human:** asked why "4 filings need you" and "14 up, 6 down" matched for 3 days and the week.
+
+**Claude:** checked the data. Not a bug: all 4 important filings fell on 11–12 Nov, and the up/down split matched by coincidence, though the moves themselves differed. It added the portfolio's average move to the pulse header so the windows can be told apart. → **`6300cfb`**
+
+**Human:** agreed to move the afternoon run after the close. → refresh at 8 am and **4:15 pm** IST.
+
 ---
 
 ## How the work was split

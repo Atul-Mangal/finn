@@ -46,7 +46,7 @@ Failed checks are shown on the card. For banks and NBFCs, EBITDA is reported as 
 
 **The portfolio pulse follows the window.** The tiles show each holding's move over the window you picked, not always the last session. Otherwise switching "24 hours" to "Month" would change the filings but not the prices, which looks broken.
 
-**Static data, not a live backend.** A GitHub Action runs the pipeline twice a day (about 8 am, before the open, and 3 pm, near the close), then commits JSON. The commit redeploys the app. The phone never waits on a scraper, nothing breaks if BSE is slow at the moment you open the app, and hosting is free.
+**Static data, not a live backend.** A GitHub Action runs the pipeline twice a day (about 8 am, before the open, and 4:15 pm, after the close so end-of-day prices are final), then commits JSON. The commit redeploys the app. The phone never waits on a scraper, nothing breaks if BSE is slow at the moment you open the app, and hosting is free.
 
 ## Pull
 

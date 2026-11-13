@@ -5,11 +5,11 @@ name: Refresh data
 
 on:
   schedule:
-    # Twice a day, every day (IST): ~8:00 before the market opens, ~15:00 near
-    # the close. GitHub often starts scheduled jobs late, so they're set ~13
-    # minutes early and off the busy top of the hour.
+    # Twice a day, every day (IST): ~8:00 before the market opens, and 16:15
+    # after the close, so the day's end-of-day prices are final. GitHub often
+    # starts scheduled jobs late; the morning slot is set early to compensate.
     - cron: "17 2 * * *"  # 07:47 IST
-    - cron: "17 9 * * *"  # 14:47 IST
+    - cron: "45 10 * * *" # 16:15 IST
   workflow_dispatch:
     inputs:
       window_days:
