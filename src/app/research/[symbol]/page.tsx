@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Analysis, CompanyBase, Computed, Flag, Metric, Research, TranscriptExtract, UsageSummary, Verdict } from "@/lib/types";
+import type { Analysis, AnnualScan, CompanyBase, Computed, Flag, Metric, Research, TranscriptExtract, UsageSummary, Verdict } from "@/lib/types";
 import { ago, scoreLine, signedPct, toneOf } from "@/lib/format";
 import { Bars } from "@/components/Spark";
 import { SampleBanner } from "@/components/SampleBanner";
@@ -25,6 +25,8 @@ export default function ResearchPage() {
   const [base, setBase] = useState<CompanyBase | null>(null);
   const [computed, setComputed] = useState<Computed | null>(null);
   const [extracts, setExtracts] = useState<TranscriptExtract[]>([]);
+  const [annual, setAnnual] = useState<AnnualScan | null>(null);
+  const [annualBusy, setAnnualBusy] = useState(false);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [usage, setUsage] = useState<UsageSummary>(ZERO);
   const [stages, setStages] = useState<Stage[]>([]);
@@ -36,7 +38,7 @@ export default function ResearchPage() {
   const started = useRef(false);
 
   const runLive = useCallback(async () => {
-    setError(null); setSnapshotAt(null); setAnalysis(null); setAnalysisError(null); setExtracts([]); setUsage(ZERO); setSample(false);
+    setError(null); setSnapshotAt(null); setAnalysis(null); setAnalysisError(null); setExtracts([]); setUsage(ZERO); setSample(false); setAnnual(null);
     const st: Stage[] = [{ label: "Financial statements from screener.in", state: "run" }];
     setStages([...st]);
     const r = await fetch(`/api/research/base?symbol=${encodeURIComponent(symbol)}`);
@@ -46,6 +48,28 @@ export default function ResearchPage() {
     st[0].state = "ok";
     if (!j.llm) { setNoLlm(true); setStages([...st]); return; }
 
+    let u = ZERO;
+    // Annual-report scan runs alongside everything else; nothing waits on it.
+    const ar = (j.base as CompanyBase).annualReports[0];
+    if (ar) {
+      const stage: Stage = { label: `Annual report, ${ar.period}`, state: "run" };
+      st.push(stage);
+      setAnnualBusy(true);
+      const bs = (j.base as CompanyBase).balance, n = bs.headers.length;
+      const netWorth = (bs.rows["equity"]?.[n - 1] ?? 0) + (bs.rows["reserves"]?.[n - 1] ?? 0) || null;
+      fetch("/api/research/annual", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: ar.url, period: ar.period, netWorth }) })
+        .then(async (res) => {
+          const a = await res.json();
+          u = add(u, a.usage); setUsage(u);
+          if (!res.ok) throw new Error(a.error);
+          setAnnual(a.annual);
+          stage.state = a.annual.error ? "err" : "ok";
+          stage.note = a.annual.error || `${a.annual.pagesRead} of ${a.annual.pages} pages read`;
+        })
+        .catch((e: Error) => { stage.state = "err"; stage.note = e.message; })
+        .finally(() => { setAnnualBusy(false); setStages([...st]); });
+    }
+
     const docs: { url: string; period: string }[] = (j.base as CompanyBase).transcripts.slice(0, TRANSCRIPTS).reverse();
     if (!docs.length) st.push({ label: "No earnings-call transcripts linked on screener.in", state: "err" });
     docs.forEach((d) => st.push({ label: `Earnings call, ${d.period}`, state: "wait" }));
@@ -53,7 +77,6 @@ export default function ResearchPage() {
     setStages([...st]);
 
     const out: TranscriptExtract[] = new Array(docs.length);
-    let u = ZERO;
     let next = 0;
     const offset = st.length - docs.length - 1;
     await Promise.all([0, 1].map(async () => {
@@ -104,7 +127,7 @@ export default function ResearchPage() {
     fetch(`/data/research/${encodeURIComponent(symbol)}.json`, { cache: "no-store" })
       .then((r) => (r.ok ? (r.json() as Promise<Research>) : Promise.reject()))
       .then((r) => {
-        setBase(r.base); setComputed(r.computed); setExtracts(r.extracts); setAnalysis(r.analysis); setUsage(r.usage);
+        setBase(r.base); setComputed(r.computed); setExtracts(r.extracts); setAnalysis(r.analysis); setUsage(r.usage); setAnnual(r.annual || null);
         setSnapshotAt(r.generatedAt); setSample(!!r.sample); setAnalysisError(r.analysisError || null);
       })
       .catch(() => runLive());
@@ -138,7 +161,7 @@ export default function ResearchPage() {
       {computed && base && (
         <>
           <nav className="sticky top-0 z-10 -mx-4 mt-4 flex gap-1.5 overflow-x-auto no-scrollbar bg-stone/95 px-4 py-2 backdrop-blur" aria-label="Sections">
-            {[["promises", "Promises"], ["numbers", "Numbers"], ["trajectory", "Trajectory"], ["balance", "Balance sheet"], ["cash", "Cash"], ["guidance", "Guidance"], ["case", "Bull & bear"]].map(([id, l]) => (
+            {[["promises", "Promises"], ["numbers", "Numbers"], ["trajectory", "Trajectory"], ["balance", "Balance sheet"], ["cash", "Cash"], ["annual", "Annual report"], ["guidance", "Guidance"], ["case", "Bull & bear"]].map(([id, l]) => (
               <a key={id} href={`#${id}`} className="shrink-0 rounded-full bg-paper px-3 py-1 text-[13px]">{l}</a>
             ))}
           </nav>
@@ -228,6 +251,21 @@ export default function ResearchPage() {
               <div className="col-span-2"><Chart title="Cash left after investing (CFO + CFI), ₹ Cr" points={computed.cash.fcfProxy} /></div>
             </div>
             <p className="mt-2 text-[12px] text-faint">CFO + CFI is a free-cash-flow proxy; it also counts purchases of financial investments.</p>
+          </Section>
+
+          <Section id="annual" title="Annual report red flags">
+            {annual && !annual.error ? (
+              <AnnualBlock a={annual} />
+            ) : (
+              <p className="text-[14px] text-graphite">
+                {annualBusy ? "Finding the auditor's report, contingent liabilities and related-party note…"
+                  : annual?.error ? `${annual.error}.`
+                  : base.annualReports[0] ? "Not scanned for this report." : "No annual report linked on screener.in."}
+                {!annualBusy && base.annualReports[0] && (
+                  <> <a className="text-link" href={base.annualReports[0].url} target="_blank" rel="noreferrer">Open the {base.annualReports[0].period} annual report</a></>
+                )}
+              </p>
+            )}
           </Section>
 
           <Section id="guidance" title="What management is guiding to now">
@@ -399,6 +437,41 @@ function Progress({ stages }: { stages: Stage[] }) {
         </li>
       ))}
     </ol>
+  );
+}
+
+function AnnualBlock({ a }: { a: AnnualScan }) {
+  return (
+    <div>
+      <Flags flags={a.flags} />
+      {a.auditor.keyMatters.length > 0 && (
+        <p className="mt-3 text-[13px] leading-snug text-graphite">
+          <span className="font-semibold text-ink">What the auditor spent time on:</span> {a.auditor.keyMatters.join("; ")}
+        </p>
+      )}
+      {a.contingent && (
+        <div className="mt-4">
+          <h3 className="text-[13px] font-semibold">Contingent liabilities</h3>
+          <p className="num mt-1 text-[14px]">
+            {a.contingent.printed}
+            {a.contingent.amountCr != null && a.contingent.pctNetWorth != null && <span className="text-graphite"> (about ₹{a.contingent.amountCr.toLocaleString("en-IN")} Cr)</span>}
+          </p>
+          {a.contingent.largest.length > 0 && (
+            <ul className="mt-1 space-y-0.5 text-[13px] text-graphite">{a.contingent.largest.map((t, i) => <li key={i}>{t}</li>)}</ul>
+          )}
+        </div>
+      )}
+      {a.relatedParty.length > 0 && (
+        <div className="mt-4">
+          <h3 className="text-[13px] font-semibold">Related-party dealings worth a look</h3>
+          <ul className="mt-1 space-y-1.5 text-[14px] leading-snug">{a.relatedParty.map((t, i) => <li key={i}>{t}</li>)}</ul>
+        </div>
+      )}
+      <p className="mt-3 text-[12px] text-faint">
+        Read {a.pagesRead} of {a.pages} pages of the{" "}
+        <a className="underline" href={a.url} target="_blank" rel="noreferrer">{a.period} annual report</a>: the auditor&apos;s report, the contingent-liabilities note and the related-party note, found by keyword.
+      </p>
+    </div>
   );
 }
 

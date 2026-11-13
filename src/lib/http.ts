@@ -47,8 +47,8 @@ export async function fetchText(url: string, init: RequestInit = {}): Promise<{ 
   return { status: res.status, text: await res.text() };
 }
 
-export async function fetchBuffer(url: string, init: RequestInit = {}): Promise<ArrayBuffer> {
-  const res = await fetchWithRetry(url, init, { retries: 2, timeoutMs: 40000 });
+export async function fetchBuffer(url: string, init: RequestInit = {}, timeoutMs = 40000): Promise<ArrayBuffer> {
+  const res = await fetchWithRetry(url, init, { retries: 2, timeoutMs });
   if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
   return await res.arrayBuffer();
 }

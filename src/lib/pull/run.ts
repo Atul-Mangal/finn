@@ -8,6 +8,7 @@ import { fetchCompany } from "./screener";
 import { compute } from "./metrics";
 import { extractTranscript } from "./guidance";
 import { analyze } from "./analyze";
+import { netWorthOf, scanAnnualReport } from "./annual";
 import type { Research } from "../types";
 
 export const TRANSCRIPTS_TO_READ = 5; // last 4 quarters + the one before, so the oldest promises can be checked
@@ -34,5 +35,13 @@ export async function runResearch(symbol: string): Promise<Research> {
       analysisError = (e as Error).message;
     }
   }
-  return { base, computed, extracts, analysis, analysisError, usage, generatedAt: new Date().toISOString() };
+  // Latest annual report: auditor's opinion, contingent liabilities, related parties.
+  let annual: Research["annual"] = null;
+  if (llmAvailable() && base.annualReports[0]) {
+    annual = await scanAnnualReport(base.annualReports[0], netWorthOf(base), usage).catch((e: Error) => {
+      console.log(`[annual] ${base.symbol}: ${e.message}`);
+      return null;
+    });
+  }
+  return { base, computed, extracts, analysis, analysisError, annual, usage, generatedAt: new Date().toISOString() };
 }

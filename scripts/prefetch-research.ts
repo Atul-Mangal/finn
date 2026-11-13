@@ -33,6 +33,10 @@ async function main() {
       } catch {}
       if (!r.analysis && prevOk) {
         console.log(`[prefetch] ${s}: judgment step failed (${r.analysisError}); keeping the previous complete report`);
+        if (r.annual) {
+          const prev = JSON.parse(fs.readFileSync(file, "utf8"));
+          fs.writeFileSync(file, JSON.stringify({ ...prev, annual: r.annual }));
+        }
         index.push(JSON.parse(fs.readFileSync(idxFileFor(), "utf8")).find((e: { symbol: string }) => e.symbol === r.base.symbol) || { symbol: r.base.symbol, name: r.base.name, generatedAt: r.generatedAt });
         store.save();
         continue;
@@ -40,6 +44,7 @@ async function main() {
       fs.writeFileSync(file, JSON.stringify(r));
       index.push({ symbol: r.base.symbol, name: r.base.name, generatedAt: r.generatedAt, scorecard: r.analysis ? scoreLine(r.analysis.promises) : undefined });
       if (r.analysisError) console.log(`[prefetch] ${s}: judgment step failed: ${r.analysisError}`);
+      console.log(`[prefetch] ${s}: annual report ${r.annual ? (r.annual.error || `${r.annual.pagesRead} of ${r.annual.pages} pages read, opinion ${r.annual.auditor.opinion}`) : "none"}`);
       console.log(`[prefetch] ${s}: ${r.extracts.length} transcripts, ${r.usage.cheapCalls}+${r.usage.strongCalls} calls, $${r.usage.estCostUSD}`);
     } catch (e) {
       console.error(`[prefetch] ${s} failed: ${(e as Error).message}`);

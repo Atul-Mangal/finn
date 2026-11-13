@@ -217,12 +217,26 @@ export interface Analysis {
   bear: string[];
 }
 
+/** Red-flag scan of the latest annual report: the three places analysts look first. */
+export interface AnnualScan {
+  period: string;
+  url: string;
+  pages: number; // pages in the report
+  pagesRead: number; // pages actually sent to the model
+  auditor: { opinion: "unmodified" | "qualified" | "adverse" | "disclaimer" | "not_found"; emphasis: string; keyMatters: string[] };
+  contingent: { printed: string; amountCr: number | null; pctNetWorth: number | null; largest: string[] } | null;
+  relatedParty: string[];
+  flags: Flag[];
+  error?: string;
+}
+
 export interface Research {
   base: CompanyBase;
   computed: Computed;
   extracts: TranscriptExtract[];
   analysis: Analysis | null;
   analysisError?: string; // the judgment step failed; numbers and extracts are still shown
+  annual?: AnnualScan | null;
   usage: UsageSummary;
   generatedAt: string;
   sample?: boolean;

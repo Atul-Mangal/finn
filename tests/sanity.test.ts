@@ -7,6 +7,7 @@ import * as cheerio from "cheerio";
 import { num } from "../src/lib/pull/screener";
 import { cagr } from "../src/lib/pull/metrics";
 import { eventDate, eventWhat } from "../src/lib/push/events";
+import { pickPages } from "../src/lib/pull/annual";
 
 test("rules classify common BSE subjects", () => {
   const cases: [string, string][] = [
@@ -111,4 +112,20 @@ test("odd period labels and column-order fallback", () => {
   assert.equal(fixed.source, "screener");
   assert.equal(fixed.prevQuarter?.label, "Q1 FY27");
   assert.ok(fixed.warnings.some((w) => /out of order/.test(w)));
+});
+
+test("annual report: picks the opinion page and the notes with numbers", () => {
+  const nums = " 1,234.5 678.9 2,345.6 987.1".repeat(20);
+  const pages = [
+    "Contents Independent Auditor's Report 210 Related party 260", // table of contents: no opinion text, few digits
+    "Chairman's letter. We had a good year.",
+    "INDEPENDENT AUDITOR'S REPORT To the Members. Opinion We have audited... true and fair view. Basis for Opinion ... Key Audit Matters",
+    "Significant accounting policies: contingent liabilities are disclosed when there is a possible obligation.", // policy text, no numbers
+    "Note 38 Contingent liabilities: claims against the company not acknowledged as debts: income tax matters" + nums,
+    "Note 41 Related party disclosures. Related parties and key managerial personnel. Transactions with related parties: sale of goods" + nums,
+  ];
+  const p = pickPages(pages);
+  assert.deepEqual(p.auditor, [2]);
+  assert.deepEqual(p.contingent, [4]);
+  assert.deepEqual(p.related, [5]);
 });

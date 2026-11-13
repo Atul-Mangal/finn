@@ -57,6 +57,7 @@ Return JSON:
     "verdict": "delivered|missed|partial|pending|unverifiable",
     "evidence": "the quarters/years compared, e.g. 'Rev YoY Q2-Q4 FY25: 14%, 11%, 9% vs 15-18% guided'"
  } ],
+ "scorecard": "one line, e.g. '3 of 5 checkable promises delivered; margin guidance missed twice'",
  "narrativeVsNumbers": [ {"point": "a claim or framing management keeps making", "stance": "agrees|diverges", "evidence": "the numbers that confirm or contradict it"} ],
  "guidanceNow": [ {"metric":"","target":"","horizon":"","quote":"verbatim from the LATEST call"} ],
  "bull": ["3 points, <=25 words each, each citing a number or quote"],
@@ -70,7 +71,7 @@ narrativeVsNumbers: 3–5 points. guidanceNow: up to 6 items from the latest cal
   return {
     business: r.business || { summary: "", segments: [] },
     promises: (r.promises || []).slice(0, 8),
-    scorecard: "", // counted in code from the verdicts (scoreLine)
+    scorecard: r.scorecard || "",
     narrativeVsNumbers: (r.narrativeVsNumbers || []).slice(0, 5),
     guidanceNow: (r.guidanceNow || []).slice(0, 6),
     bull: (r.bull || []).slice(0, 3),
