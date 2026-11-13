@@ -11,7 +11,7 @@ A mobile-first investing agent for Indian equities, built for the ENAM AI Engine
 ## How it works
 
 ```
-GitHub Actions (twice a day (8 am and 3 pm IST))          Vercel (Next.js, mobile web app)
+GitHub Actions (daily, ~8 am + ~3 pm IST)                Vercel (Next.js, mobile web app)
 ┌──────────────────────────────────────────────────┐           ┌───────────────────────────────┐
 │ Yahoo EOD ─┐                                      │  commit   │ Brief / Tripwires read static  │
 │ BSE filings ┼─ rules classify ─ score ─ cluster ──┼──JSON────▶│ JSON: instant, no waiting      │
@@ -31,7 +31,7 @@ GitHub Actions (twice a day (8 am and 3 pm IST))          Vercel (Next.js, mobil
 | Guidance | Cheap model, one call per transcript, cached forever per URL | A transcript never changes |
 | Promise vs delivered, bull/bear | **One** strong-model call over compact extracted facts | The only step that needs reasoning |
 
-Measured costs: an hourly feed refresh is mostly cache hits (often zero new model calls). A fresh research report is 5 small-model calls plus 1 large-model call, about $0.01–0.015 (~₹1) at list price, and ₹0 on Gemini's free tier. Every number on screen is cross-checked or computed in code; see [DECISIONS.md](DECISIONS.md#what-real-data-broke-and-what-changed).
+Measured costs: a feed refresh is mostly cache hits (often zero new model calls). A fresh research report is 5 small-model calls plus 1 large-model call, about $0.01–0.015 (~₹1) at list price, and ₹0 on Gemini's free tier. Every number on screen is cross-checked or computed in code; see [DECISIONS.md](DECISIONS.md#what-real-data-broke-and-what-changed).
 
 ## Run it
 

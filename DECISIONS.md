@@ -38,7 +38,7 @@ Failed checks are shown on the card. For banks and NBFCs, EBITDA is reported as 
 
 **Tripwires calibrate themselves.** Instead of just asking for "volume ×" and "price %", the settings screen runs the thresholds over the last 60 sessions and says *"about 4 alerts a week."* The investor sets the noise level, not an abstract number.
 
-**Static data, not a live backend.** A GitHub Action runs the pipeline hourly during market hours and again after close, then commits JSON. The commit redeploys the app. The phone never waits on a scraper, nothing breaks if BSE is slow at the moment you open the app, and hosting is free.
+**Static data, not a live backend.** A GitHub Action runs the pipeline twice a day (about 8 am, before the open, and 3 pm, near the close), then commits JSON. The commit redeploys the app. The phone never waits on a scraper, nothing breaks if BSE is slow at the moment you open the app, and hosting is free.
 
 ## Pull
 
