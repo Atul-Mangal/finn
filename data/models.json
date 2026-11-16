@@ -1,5 +1,5 @@
 {
- "cheap": "gemini-3.5-flash-lite",
+ "cheap": "gemini-3.1-flash-lite",
  "strong": "gemini-3.6-flash",
  "note": "Last models that answered in time; written by the data jobs, read at startup",
  "slow": [
